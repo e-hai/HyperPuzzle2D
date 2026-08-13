@@ -1,0 +1,37 @@
+# Unity generated
+HyperPuzzle2D/[Ll]ibrary/
+HyperPuzzle2D/[Tt]emp/
+HyperPuzzle2D/[Oo]bj/
+HyperPuzzle2D/[Ll]ogs/
+HyperPuzzle2D/[Uu]ser[Ss]ettings/
+HyperPuzzle2D/[Mm]emoryCaptures/
+HyperPuzzle2D/[Rr]ecordings/
+HyperPuzzle2D/Builds/
+
+# IDE / local
+.vs/
+.idea/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.DS_Store
+
+# Builds & editor caches at repo root
+Builds/
+tools/unity-modules/
+tools/__pycache__/
+*.log
+
+# Packed addressables / crash reports
+HyperPuzzle2D/CrashReports/
+**/AssetStoreTools/
