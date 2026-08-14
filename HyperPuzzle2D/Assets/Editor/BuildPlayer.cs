@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
@@ -16,33 +17,73 @@ namespace HyperPuzzle2D.Editor
     public static class BuildPlayer
     {
         const string AndroidOut = "Builds/Android/HyperSmash.apk";
+        const string AndroidAabOut = "Builds/Android/HyperSmash.aab";
         const string IosOut = "Builds/iOS";
+        const string IosSimulatorOut = "Builds/iOSSimulator";
         const string MacOut = "Builds/Mac/HyperSmash.app";
 
         public static void BuildAndroid()
         {
-            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.hyperpuzzle.hypersmash");
-            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel24;
-            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-            PlayerSettings.Android.forceSDCardPermission = false;
+            ConfigureAndroid();
             EditorUserBuildSettings.buildAppBundle = false;
-            EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
-
             Run(BuildTarget.Android, AndroidOut, BuildOptions.None);
+        }
+
+        public static void BuildAndroidAab()
+        {
+            ConfigureAndroid();
+            EditorUserBuildSettings.buildAppBundle = true;
+            Run(BuildTarget.Android, AndroidAabOut, BuildOptions.None);
         }
 
         public static void BuildIOS()
         {
-            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.iOS, "com.hyperpuzzle.hypersmash");
-            PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneAndiPad;
+            ConfigureIOS();
             PlayerSettings.iOS.sdkVersion = iOSSdkVersion.DeviceSDK;
             Run(BuildTarget.iOS, IosOut, BuildOptions.None);
         }
 
+        public static void BuildIOSSimulator()
+        {
+            ConfigureIOS();
+            PlayerSettings.iOS.sdkVersion = iOSSdkVersion.SimulatorSDK;
+            PlayerSettings.iOS.simulatorSdkArchitecture = AppleMobileArchitectureSimulator.ARM64;
+            Run(BuildTarget.iOS, IosSimulatorOut, BuildOptions.None);
+        }
+
         public static void BuildMac()
         {
-            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Standalone, "com.hyperpuzzle.hypersmash");
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, "com.hyperpuzzle.hypersmash");
             Run(BuildTarget.StandaloneOSX, MacOut, BuildOptions.None);
+        }
+
+        static void ConfigureAndroid()
+        {
+            PlayerSettings.productName = "Hyper Smash";
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.hyperpuzzle.hypersmash");
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.Android, Il2CppCompilerConfiguration.Release);
+            PlayerSettings.stripEngineCode = false;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
+            PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.Android.forceSDCardPermission = false;
+            EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
+        }
+
+        static void ConfigureIOS()
+        {
+            PlayerSettings.productName = "Hyper Smash";
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.hyperpuzzle.hypersmash");
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.iOS, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.iOS, Il2CppCompilerConfiguration.Release);
+            PlayerSettings.stripEngineCode = false;
+            PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneAndiPad;
+            PlayerSettings.iOS.targetOSVersionString = "15.0";
+            PlayerSettings.statusBarHidden = true;
+            PlayerSettings.iOS.requiresPersistentWiFi = false;
         }
 
         static void Run(BuildTarget target, string relativeOut, BuildOptions options)
@@ -60,6 +101,7 @@ namespace HyperPuzzle2D.Editor
                 Directory.CreateDirectory(dir);
             }
 
+            AssetDatabase.SaveAssets();
             Debug.Log($"[BuildPlayer] Building {target} → {outPath}");
             var report = BuildPipeline.BuildPlayer(scenes, outPath, target, options);
             var summary = report.summary;

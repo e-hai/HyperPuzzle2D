@@ -1,0 +1,6 @@
+<linker>
+  <!-- The entire UI is created at runtime, so static scene analysis cannot discover these. -->
+  <assembly fullname="UnityEngine.UI" preserve="all" />
+  <assembly fullname="UnityEngine.UIModule" preserve="all" />
+  <assembly fullname="UnityEngine.InputLegacyModule" preserve="all" />
+</linker>

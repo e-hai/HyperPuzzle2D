@@ -125,7 +125,7 @@ namespace HyperPuzzle2D.Core
             ClearBoard();
             SpawnStructure(_seed);
             _loop.StartRun(mode, _layout.Ammo, _blocks.Count);
-            _cannon.CanFire = true;
+            _cannon.ArmAfterPointerRelease();
             _shotInFlight = false;
             if (_failPanel != null) _failPanel.SetActive(false);
             if (_clearPanel != null) _clearPanel.SetActive(false);
@@ -302,7 +302,9 @@ namespace HyperPuzzle2D.Core
             {
                 var es = new GameObject("EventSystem");
                 es.AddComponent<UnityEngine.EventSystems.EventSystem>();
-                es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+                var baseInput = es.AddComponent<UnityEngine.EventSystems.BaseInput>();
+                var inputModule = es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+                inputModule.inputOverride = baseInput;
             }
 
             _scoreText = CreateHudChip(canvasGo.transform, "ScoreChip", new Vector2(0.05f, 0.876f), new Vector2(0.475f, 0.958f), Loc.Get("hud.scoreCaption"), TextAnchor.MiddleLeft, out _scoreCaption);
@@ -888,7 +890,7 @@ namespace HyperPuzzle2D.Core
                 if (_loop.TryRevive(reviveAmmo))
                 {
                     _failPanel.SetActive(false);
-                    _cannon.CanFire = true;
+                    _cannon.ArmAfterPointerRelease();
                     RefreshHud();
                 }
             });
@@ -908,7 +910,9 @@ namespace HyperPuzzle2D.Core
 
             if (_targetsText != null)
             {
-                _targetsText.text = Loc.Format("hud.targets", Loc.LevelName(_layout.Name), _loop.TargetsRemaining);
+                _targetsText.text = _layout == null
+                    ? string.Empty
+                    : Loc.Format("hud.targets", Loc.LevelName(_layout.Name), _loop.TargetsRemaining);
             }
         }
 

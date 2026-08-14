@@ -27,9 +27,21 @@ namespace HyperPuzzle2D.Input
         Transform _previewRoot;
         SpriteRenderer[] _previewDots;
         bool _dragging;
+        bool _waitingForPointerRelease;
         Vector3 _pull;
 
         public Vector3 MuzzlePosition => transform.position + transform.up * MuzzleOffset;
+
+        public void ArmAfterPointerRelease()
+        {
+            CanFire = true;
+            _dragging = false;
+            _waitingForPointerRelease = true;
+            if (_previewRoot != null)
+            {
+                _previewRoot.gameObject.SetActive(false);
+            }
+        }
 
         void Awake()
         {
@@ -64,6 +76,18 @@ namespace HyperPuzzle2D.Input
                 {
                     _dragging = false;
                     _previewRoot.gameObject.SetActive(false);
+                }
+
+                return;
+            }
+
+            // Menu/result buttons enable the cannon from a pointer-up callback. Ignore that
+            // transition frame so the UI gesture cannot leak through as an immediate shot.
+            if (_waitingForPointerRelease)
+            {
+                if (!UnityEngine.Input.GetMouseButton(0) && UnityEngine.Input.touchCount == 0)
+                {
+                    _waitingForPointerRelease = false;
                 }
 
                 return;

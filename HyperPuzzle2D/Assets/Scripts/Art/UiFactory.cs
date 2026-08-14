@@ -78,6 +78,13 @@ namespace HyperPuzzle2D.Art
                     return _cjkFont;
                 }
 
+                // A bundled OFL font keeps glyph coverage identical across Android and iOS.
+                _cjkFont = Resources.Load<Font>("Fonts/NotoSansSC");
+                if (_cjkFont != null)
+                {
+                    return _cjkFont;
+                }
+
                 _cjkFont = Font.CreateDynamicFontFromOSFont(CjkOsFonts, 48);
                 if (_cjkFont == null)
                 {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Package HyperPuzzle2D for a target platform.
-# Usage: tools/build.sh android|ios|mac
+# Usage: tools/build.sh android|android-aab|ios|ios-sim|mac
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,9 +12,11 @@ mkdir -p "$ROOT/Builds"
 
 case "$TARGET" in
   android) METHOD="HyperPuzzle2D.Editor.BuildPlayer.BuildAndroid" ;;
+  android-aab) METHOD="HyperPuzzle2D.Editor.BuildPlayer.BuildAndroidAab" ;;
   ios) METHOD="HyperPuzzle2D.Editor.BuildPlayer.BuildIOS" ;;
+  ios-sim) METHOD="HyperPuzzle2D.Editor.BuildPlayer.BuildIOSSimulator" ;;
   mac) METHOD="HyperPuzzle2D.Editor.BuildPlayer.BuildMac" ;;
-  *) echo "Usage: $0 android|ios|mac"; exit 2 ;;
+  *) echo "Usage: $0 android|android-aab|ios|ios-sim|mac"; exit 2 ;;
 esac
 
 if [[ ! -x "$UNITY" ]]; then

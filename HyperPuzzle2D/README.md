@@ -1,6 +1,6 @@
 # HyperPuzzle2D
 
-Unity **6000.5.8f1** · 物理反馈型 2D 益智（炮台瞄准）· MVP W1 骨架
+Unity **6000.5.8f1** · 物理反馈型 2D 益智（炮台瞄准）· Android / iOS / macOS
 
 ## 已锁定
 
@@ -16,18 +16,42 @@ Unity **6000.5.8f1** · 物理反馈型 2D 益智（炮台瞄准）· MVP W1 骨
    ```
    浏览器登录后，用 Unity Hub / Editor 确认 Personal 或 Pro 许可证可用。
 
-2. 打开工程目录：`/Users/a/Develop/project/unity/HyperPuzzle2D`
+2. 打开 `HyperPuzzle2D` 工程目录。
 
 3. 任意 Scene（或空场景）点 **Play**  
    `RuntimeBootstrap` 会自动生成炮台关卡。
-
-> 当前机器尚未登录 Unity 账号，命令行/`-batchmode` 无法编译验证；登录后首次打开会自动生成 `.meta` 与缺失的 ProjectSettings。
 
 ## 操作
 
 - 按住拖拽瞄准，松开发射  
 - 弹药打光可看广告复活（Mock 立即成功）  
 - 清台后点 Next 开下一局
+
+## 移动端构建
+
+工程使用固定包名 `com.hyperpuzzle.hypersmash`，Android 与 iOS 均仅使用竖屏。
+
+```bash
+# Android ARM64 调试安装包
+../tools/build.sh android
+
+# Google Play AAB
+../tools/build.sh android-aab
+
+# iOS 真机 Xcode 工程（签名由 Xcode/CI 注入）
+../tools/build.sh ios
+
+# Apple Silicon iOS 模拟器 Xcode 工程
+../tools/build.sh ios-sim
+```
+
+要求：
+
+- Android：JDK 17、NDK r27c（27.2.12479018）、SDK Build Tools 36；
+- iOS：Xcode 26+，部署目标 iOS 15+；
+- 发布包须配置正式 Android keystore；iOS 真机安装须配置 Apple Developer Team 和 provisioning profile。
+
+产物默认生成在 `HyperPuzzle2D/Builds/`，不会提交到 Git。
 
 ## 文档
 
