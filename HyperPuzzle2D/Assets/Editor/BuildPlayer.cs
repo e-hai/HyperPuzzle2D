@@ -59,6 +59,7 @@ namespace HyperPuzzle2D.Editor
 
         static void ConfigureAndroid()
         {
+            BrandAssets.EnsureAndApply();
             PlayerSettings.productName = "Hyper Smash";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.hyperpuzzle.hypersmash");
@@ -74,6 +75,7 @@ namespace HyperPuzzle2D.Editor
 
         static void ConfigureIOS()
         {
+            BrandAssets.EnsureAndApply();
             PlayerSettings.productName = "Hyper Smash";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.hyperpuzzle.hypersmash");

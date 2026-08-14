@@ -13,13 +13,13 @@ from pathlib import Path
 LIBRARY = Path(__file__).resolve().parents[1] / "HyperPuzzle2D/Assets/Scripts/Board/LevelLibrary.cs"
 
 # Must match GameDirector.
-SHELF_CENTER_X = 2.0
-SHELF_WIDTH = 4.6
+SHELF_CENTER_X = 1.4
+SHELF_WIDTH = 4.4
 BLOCK_PITCH = 0.8
 BLOCK_SIZE = 0.8
 
 LAYOUT_RE = re.compile(
-    r'new LevelLayout\(\s*"(?P<name>[A-Z]+)",\s*(?P<ammo>\d+),\s*(?P<rows>(?:"[^"]*",?\s*)+)\)',
+    r'new LevelLayout\(\s*"(?P<name>[A-Z]+)",\s*(?P<ammo>\d+),\s*\d+,\s*(?P<rows>(?:"[^"]*",?\s*)+)\)',
     re.MULTILINE,
 )
 

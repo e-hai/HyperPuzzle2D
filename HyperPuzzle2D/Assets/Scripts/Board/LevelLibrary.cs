@@ -5,50 +5,50 @@ namespace HyperPuzzle2D.Board
     /// dense stacks reward raw power, supported shapes reward hitting the pillar.
     /// </summary>
     /// <remarks>
-    /// Glyphs: '#' block, 'X' heavy, 'O' ball, '|' pillar, '=' beam, '.' empty.
+    /// Glyphs: '#' block, 'G' brittle, '!' explosive, 'X' heavy, 'O' ball,
+    /// '|' pillar, '=' beam, '.' empty.
     /// Rows are written top-first. Every non-beam cell needs something directly beneath it,
     /// because each cell is its own rigid body; only beams span a gap.
+    /// Target scores assume roughly two hits per shot: dense boards chain more, so they ask more.
     /// </remarks>
     public static class LevelLibrary
     {
         public static readonly LevelLayout[] All =
         {
-            // Baseline slab. Forgiving, teaches "push things off the edge".
+            // Slice 1: large brittle face guarantees visible destruction on the opening shot.
             new LevelLayout(
-                "TOWER", 5,
-                ".OOO.",
-                ".###.",
-                ".###.",
-                ".###.",
-                ".###."),
+                "TOWER", 3, 100,
+                ".GGG.",
+                ".GGG.",
+                ".GGG.",
+                ".GGG."),
 
-            // Arch on two legs: take out a pillar and the roof follows.
+            // Slice 2: the warm core teaches explosive weak points and a roof cascade.
             new LevelLayout(
-                "GATE", 5,
+                "GATE", 3, 120,
                 "..O..",
                 ".===.",
-                ".|.|.",
-                ".|.|."),
+                ".!||.",
+                ".#||."),
 
-            // Split targets, both perched near the shelf lip.
+            // Slice 3: choose an entry angle that chains both separated explosive cores.
             new LevelLayout(
-                "TWINS", 5,
-                "O...O",
-                "#...#",
-                "#...#",
-                "#...#",
-                "#...#"),
+                "TWINS", 3, 180,
+                ".O.O.",
+                ".G.G.",
+                ".!.!.",
+                ".#.#."),
 
             // Wide base, narrow top. Low shots scatter the base and drop everything.
             new LevelLayout(
-                "PYRAMID", 4,
+                "PYRAMID", 4, 70,
                 "..O..",
                 ".###.",
                 "#####"),
 
             // Everything rides one central leg: the classic one-shot topple.
             new LevelLayout(
-                "TABLE", 4,
+                "TABLE", 4, 50,
                 ".OOO.",
                 ".===.",
                 "..|..",
@@ -56,7 +56,7 @@ namespace HyperPuzzle2D.Board
 
             // Dense shell around a heavy core that resists being nudged.
             new LevelLayout(
-                "VAULT", 6,
+                "VAULT", 6, 120,
                 ".OOO.",
                 ".###.",
                 ".#X#.",
@@ -64,7 +64,7 @@ namespace HyperPuzzle2D.Board
 
             // Alternating decks: collapsing the lower legs cascades the whole stack.
             new LevelLayout(
-                "SHELVES", 5,
+                "SHELVES", 5, 80,
                 ".OOO.",
                 ".===.",
                 ".|.|.",
@@ -73,12 +73,25 @@ namespace HyperPuzzle2D.Board
 
             // Widest board; edge columns sit near the shelf lip and clear easily.
             new LevelLayout(
-                "WALL", 6,
+                "WALL", 6, 150,
                 "OO.OO",
                 "#####",
                 "#####",
                 "#####"),
         };
+
+        public static int Count => All.Length;
+
+        /// <summary>0-based stage lookup for the ordered campaign path.</summary>
+        public static LevelLayout Get(int index)
+        {
+            if (index < 0 || index >= All.Length)
+            {
+                throw new System.ArgumentOutOfRangeException(nameof(index), index, "Stage index out of range.");
+            }
+
+            return All[index];
+        }
 
         /// <summary>Deterministic pick so a Daily seed always rebuilds the same structure.</summary>
         public static LevelLayout Pick(int seed)

@@ -13,8 +13,10 @@ namespace HyperPuzzle2D.Input
         /// <summary>Distance from the pivot to the barrel tip, where shots originate.</summary>
         public const float MuzzleOffset = 1.2f;
 
-        [SerializeField] float minPower = 6f;
-        [SerializeField] float maxPower = 16f;
+        // Tuned to the gap between cannon and shelf: the weakest pull still reaches the near edge
+        // of the stack, the strongest clears it without flying off screen.
+        [SerializeField] float minPower = 8f;
+        [SerializeField] float maxPower = 18f;
         [SerializeField] float maxPull = 2.5f;
         [SerializeField] int previewDots = 22;
         [SerializeField] float previewStep = 0.05f;
@@ -26,9 +28,13 @@ namespace HyperPuzzle2D.Input
         Camera _camera;
         Transform _previewRoot;
         SpriteRenderer[] _previewDots;
+        SpriteRenderer _chargeRing;
         bool _dragging;
         bool _waitingForPointerRelease;
         Vector3 _pull;
+        Vector3 _dragStartWorld;
+        Vector3 _restPosition;
+        float _recoil;
 
         public Vector3 MuzzlePosition => transform.position + transform.up * MuzzleOffset;
 
@@ -46,6 +52,7 @@ namespace HyperPuzzle2D.Input
         void Awake()
         {
             _camera = Camera.main;
+            _restPosition = transform.position;
             BuildPreview();
         }
 
@@ -64,6 +71,12 @@ namespace HyperPuzzle2D.Input
                 renderer.sortingOrder = SortingOrders.AimGuide;
                 _previewDots[i] = renderer;
             }
+
+            var charge = new GameObject("ChargeRing");
+            charge.transform.SetParent(_previewRoot, false);
+            _chargeRing = charge.AddComponent<SpriteRenderer>();
+            _chargeRing.sprite = Shapes.Circle;
+            _chargeRing.sortingOrder = SortingOrders.AimGuide;
 
             _previewRoot.gameObject.SetActive(false);
         }
@@ -95,7 +108,14 @@ namespace HyperPuzzle2D.Input
 
             if (UnityEngine.Input.GetMouseButtonDown(0))
             {
+                // The HUD overlays the playfield, so a tap on its buttons must not start an aim.
+                if (PointerOverUi())
+                {
+                    return;
+                }
+
                 _dragging = true;
+                _dragStartWorld = PointerWorld();
                 UpdateAim();
             }
             else if (_dragging && UnityEngine.Input.GetMouseButton(0))
@@ -115,27 +135,51 @@ namespace HyperPuzzle2D.Input
             }
         }
 
+        static bool PointerOverUi()
+        {
+            var events = UnityEngine.EventSystems.EventSystem.current;
+            if (events == null)
+            {
+                return false;
+            }
+
+            if (UnityEngine.Input.touchCount > 0)
+            {
+                return events.IsPointerOverGameObject(UnityEngine.Input.GetTouch(0).fingerId);
+            }
+
+            return events.IsPointerOverGameObject();
+        }
+
         void UpdateAim()
         {
-            var pointer = _camera.ScreenToWorldPoint(UnityEngine.Input.mousePosition);
-            pointer.z = 0f;
-
-            var delta = transform.position - pointer;
+            var pointer = PointerWorld();
+            // Gesture-relative slingshot: start anywhere, drag down-left, release. The old
+            // cannon-relative vector required dragging beyond the phone's left edge because the
+            // cannon itself sits there, making reliable horizontal shots physically impossible.
+            var delta = _dragStartWorld - pointer;
             if (delta.magnitude > maxPull)
             {
                 delta = delta.normalized * maxPull;
             }
 
             // Bias upward so a drag straight across still produces a lobbing shot.
-            if (delta.y < 0.2f)
+            if (delta.y < 0.05f)
             {
-                delta.y = 0.2f;
+                delta.y = 0.05f;
             }
 
             _pull = delta;
             transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(_pull.y, _pull.x) * Mathf.Rad2Deg - 90f);
 
             DrawPreview(ComputeVelocity());
+        }
+
+        Vector3 PointerWorld()
+        {
+            var pointer = _camera.ScreenToWorldPoint(UnityEngine.Input.mousePosition);
+            pointer.z = 0f;
+            return pointer;
         }
 
         void DrawPreview(Vector2 velocity)
@@ -146,7 +190,12 @@ namespace HyperPuzzle2D.Input
             var gravity = Physics2D.gravity * Projectile.GravityScale;
             var charge = Mathf.Clamp01(_pull.magnitude / maxPull);
             var tint = Color.Lerp(Palette.AccentCool, Palette.Accent, charge);
+            _chargeRing.transform.position = origin;
+            _chargeRing.transform.localScale = Vector3.one * Mathf.Lerp(0.24f, 0.58f, charge);
+            _chargeRing.color = new Color(tint.r, tint.g, tint.b, 0.34f);
 
+            var previous = (Vector2)origin;
+            var blocked = false;
             for (var i = 0; i < _previewDots.Length; i++)
             {
                 var t = (i + 1) * previewStep;
@@ -154,16 +203,75 @@ namespace HyperPuzzle2D.Input
 
                 var fade = 1f - i / (float)_previewDots.Length;
                 var dot = _previewDots[i];
+                if (blocked)
+                {
+                    dot.gameObject.SetActive(false);
+                    continue;
+                }
+
+                dot.gameObject.SetActive(true);
+                var segment = (Vector2)point - previous;
+                var hit = FirstTargetHit(previous, segment);
+                if (hit.collider != null)
+                {
+                    point = hit.point;
+                    blocked = true;
+                    fade = 1f;
+                }
+
                 dot.transform.position = point;
-                dot.transform.localScale = Vector3.one * Mathf.Lerp(0.06f, 0.17f, fade);
-                dot.color = new Color(tint.r, tint.g, tint.b, fade * 0.85f);
+                dot.transform.localScale = Vector3.one * (blocked ? 0.28f : Mathf.Lerp(0.06f, 0.17f, fade));
+                dot.color = blocked ? Palette.Projectile : new Color(tint.r, tint.g, tint.b, fade * 0.85f);
+                previous = point;
             }
+        }
+
+        static RaycastHit2D FirstTargetHit(Vector2 origin, Vector2 segment)
+        {
+            if (segment.sqrMagnitude <= 0.0001f)
+            {
+                return default;
+            }
+
+            var hits = Physics2D.CircleCastAll(origin, 0.22f, segment.normalized, segment.magnitude);
+            var best = default(RaycastHit2D);
+            var bestDistance = float.PositiveInfinity;
+            foreach (var hit in hits)
+            {
+                var block = hit.collider != null ? hit.collider.GetComponent<DestructibleBlock>() : null;
+                if (block == null || block.IsCleared || hit.distance >= bestDistance)
+                {
+                    continue;
+                }
+
+                best = hit;
+                bestDistance = hit.distance;
+            }
+
+            return best;
+        }
+
+        public void Kick()
+        {
+            _recoil = 0.22f;
+        }
+
+        void LateUpdate()
+        {
+            _recoil = Mathf.MoveTowards(_recoil, 0f, Time.unscaledDeltaTime * 1.8f);
+            transform.position = _restPosition - transform.up * _recoil;
         }
 
         Vector2 ComputeVelocity()
         {
             var charge = Mathf.Clamp01(_pull.magnitude / maxPull);
-            return _pull.normalized * Mathf.Lerp(minPower, maxPower, charge);
+            if (charge < 0.06f)
+            {
+                return Vector2.zero;
+            }
+
+            var shapedCharge = charge * charge * (3f - 2f * charge);
+            return _pull.normalized * Mathf.Lerp(minPower, maxPower, shapedCharge);
         }
     }
 }

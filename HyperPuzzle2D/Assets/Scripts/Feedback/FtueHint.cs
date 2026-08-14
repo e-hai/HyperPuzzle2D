@@ -18,8 +18,9 @@ namespace HyperPuzzle2D.Feedback
             go.transform.SetParent(parent, false);
 
             var rect = (RectTransform)go.transform;
-            rect.anchorMin = new Vector2(0.08f, 0.12f);
-            rect.anchorMax = new Vector2(0.92f, 0.2f);
+            // Below the cannon, which now sits low in the taller playfield.
+            rect.anchorMin = new Vector2(0.08f, 0.03f);
+            rect.anchorMax = new Vector2(0.92f, 0.1f);
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 

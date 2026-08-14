@@ -1,4 +1,5 @@
 using HyperPuzzle2D.Art;
+using HyperPuzzle2D.Localization;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -29,20 +30,23 @@ namespace HyperPuzzle2D.Feedback
 
         public void ShowCombo(int combo)
         {
-            if (comboText == null || combo <= 1)
+            if (comboText == null || combo <= 0)
             {
                 return;
             }
 
-            comboText.text = combo >= 4 ? "PERFECT x" + combo : "COMBO x" + combo;
+            comboText.text = combo >= 7
+                ? Loc.Get("feedback.collapse")
+                : combo >= 4
+                    ? Loc.Format("feedback.chain", combo)
+                    : combo == 1 ? Loc.Get("feedback.smash") : Loc.Format("feedback.smashx", combo);
             _tint = Palette.ComboTint(combo);
             _age = 0f;
             _playing = true;
             comboText.gameObject.SetActive(true);
 
-#if UNITY_IOS || UNITY_ANDROID
-            Handheld.Vibrate();
-#endif
+            if (combo >= 4) Haptics.Heavy();
+            else if (combo >= 2) Haptics.Medium();
         }
 
         void Update()

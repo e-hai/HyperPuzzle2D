@@ -30,6 +30,13 @@ namespace HyperPuzzle2D.Art
 
         public static readonly Color CardFill = Hex("241B4F");
         public static readonly Color HudFill = new Color(0.07f, 0.05f, 0.18f, 0.62f);
+
+        /// <summary>
+        /// In-game HUD chips sit straight on the play field with no scrim behind them, so they
+        /// need far more body than <see cref="HudFill"/>: at dialog opacity the drifting backdrop
+        /// motes show through the panels and the readouts stop reading as a layer of their own.
+        /// </summary>
+        public static readonly Color HudPanel = new Color(0.16f, 0.13f, 0.35f, 1f);
         public static readonly Color Scrim = new Color(0.04f, 0.02f, 0.11f, 0.78f);
 
         /// <summary>Block tints, ordered so a structure reads as a warm-to-cool stack.</summary>
@@ -52,6 +59,9 @@ namespace HyperPuzzle2D.Art
 
         /// <summary>Stone-toned mass that resists being nudged.</summary>
         public static readonly Color Heavy = Hex("7C89AD");
+        public static readonly Color Brittle = Hex("77E8FF");
+        public static readonly Color Explosive = Hex("FF5D3D");
+        public static readonly Color ExplosionCore = Hex("FFE66D");
 
         /// <summary>Combo tiers: higher combos read hotter.</summary>
         public static Color ComboTint(int combo)

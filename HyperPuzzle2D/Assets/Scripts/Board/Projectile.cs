@@ -12,10 +12,16 @@ namespace HyperPuzzle2D.Board
         /// <summary>Shared with the cannon's trajectory preview so the dots match the real arc.</summary>
         public const float GravityScale = 1.2f;
 
-        [SerializeField] float lifeSeconds = 4f;
+        /// <summary>Below the bottom of the tallest phone viewport, so shots leave view before despawning.</summary>
+        const float OutOfPlayY = -12f;
+
+        [SerializeField] float lifeSeconds = 1.8f;
+        [SerializeField] float outOfPlayX = 5.2f;
 
         Rigidbody2D _body;
         float _spawnTime;
+        float _lastImpactTime;
+        float _resolveAt;
         bool _resolved;
         System.Action<Projectile> _onResolved;
 
@@ -24,6 +30,8 @@ namespace HyperPuzzle2D.Board
             _onResolved = onResolved;
             _resolved = false;
             _spawnTime = Time.time;
+            _lastImpactTime = float.NegativeInfinity;
+            _resolveAt = float.PositiveInfinity;
             _body = GetComponent<Rigidbody2D>();
             _body.gravityScale = GravityScale;
             _body.linearVelocity = velocity;
@@ -36,7 +44,11 @@ namespace HyperPuzzle2D.Board
                 return;
             }
 
-            if (Time.time - _spawnTime >= lifeSeconds || transform.position.y < -8f)
+            var age = Time.time - _spawnTime;
+            var quietAfterImpact = _lastImpactTime > 0f && Time.time - _lastImpactTime > 0.42f &&
+                                   _body != null && _body.linearVelocity.sqrMagnitude < 0.35f;
+            if (age >= lifeSeconds || Time.time >= _resolveAt || transform.position.y < OutOfPlayY ||
+                Mathf.Abs(transform.position.x) > outOfPlayX || quietAfterImpact)
             {
                 Resolve();
             }
@@ -44,7 +56,11 @@ namespace HyperPuzzle2D.Board
 
         void OnCollisionEnter2D(Collision2D collision)
         {
-            // Keep flying after first bounce; resolution is time / fall based.
+            _lastImpactTime = Time.time;
+            if (collision.relativeVelocity.sqrMagnitude >= 36f)
+            {
+                _resolveAt = Mathf.Min(_resolveAt, Time.time + 0.55f);
+            }
         }
 
         public void Resolve()

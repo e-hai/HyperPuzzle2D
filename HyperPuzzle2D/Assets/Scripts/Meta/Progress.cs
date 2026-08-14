@@ -3,9 +3,8 @@ using UnityEngine;
 namespace HyperPuzzle2D.Meta
 {
     /// <summary>
-    /// Local persistence for endless-mode progress and player preference toggles.
-    /// Daily best scores live in <see cref="DailyChallenge"/>; this owns the all-time endless
-    /// best, FTUE completion, and the SFX / haptics switches.
+    /// Local persistence for endless-mode progress, stage unlocks, and preference toggles.
+    /// Daily best scores live in <see cref="DailyChallenge"/>.
     /// </summary>
     public static class Progress
     {
@@ -14,11 +13,37 @@ namespace HyperPuzzle2D.Meta
         const string SfxKey = "pref_sfx";
         const string HapticsKey = "pref_haptics";
         const string RunsKey = "runs_started";
+        const string StageUnlockedKey = "stage_unlocked";
+        const string LastPlayedStageKey = "last_played_stage";
 
         /// <summary>Interstitial ads stay quiet for the first few runs so FTUE is not interrupted.</summary>
         public const int AdFreeRuns = 3;
 
         public static int EndlessBest => PlayerPrefs.GetInt(EndlessBestKey, 0);
+
+        /// <summary>
+        /// Highest 1-based stage number the player may enter. Starts at 1 (first stage unlocked).
+        /// </summary>
+        public static int StageUnlocked
+        {
+            get => Mathf.Max(1, PlayerPrefs.GetInt(StageUnlockedKey, 1));
+            private set
+            {
+                PlayerPrefs.SetInt(StageUnlockedKey, value);
+                PlayerPrefs.Save();
+            }
+        }
+
+        /// <summary>0-based index of the last stage the player started.</summary>
+        public static int LastPlayedStage
+        {
+            get => Mathf.Max(0, PlayerPrefs.GetInt(LastPlayedStageKey, 0));
+            set
+            {
+                PlayerPrefs.SetInt(LastPlayedStageKey, Mathf.Max(0, value));
+                PlayerPrefs.Save();
+            }
+        }
 
         public static bool FtueDone
         {
@@ -53,6 +78,32 @@ namespace HyperPuzzle2D.Meta
         public static int RunsStarted => PlayerPrefs.GetInt(RunsKey, 0);
 
         public static bool ShouldDelayInterstitial => RunsStarted <= AdFreeRuns;
+
+        public static bool IsStageUnlocked(int zeroBasedIndex)
+        {
+            return zeroBasedIndex >= 0 && (zeroBasedIndex + 1) <= StageUnlocked;
+        }
+
+        /// <summary>
+        /// After clearing stage <paramref name="zeroBasedIndex"/>, unlocks the next one.
+        /// Returns true when a new stage became available.
+        /// </summary>
+        public static bool UnlockAfterClear(int zeroBasedIndex, int stageCount)
+        {
+            if (stageCount <= 0)
+            {
+                return false;
+            }
+
+            var next = Mathf.Clamp(zeroBasedIndex + 2, 1, stageCount);
+            if (next <= StageUnlocked)
+            {
+                return false;
+            }
+
+            StageUnlocked = next;
+            return true;
+        }
 
         /// <summary>Stores the score if it beats the record. Returns true when a new best was set.</summary>
         public static bool SubmitEndless(int score)

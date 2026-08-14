@@ -9,6 +9,8 @@ namespace HyperPuzzle2D.Board
         Heavy,
         Ball,
         Pillar,
+        Brittle,
+        Explosive,
 
         /// <summary>
         /// Spans horizontally: a run of adjacent beam cells becomes one rigid body, so it can
@@ -30,20 +32,29 @@ namespace HyperPuzzle2D.Board
         public const char BallGlyph = 'O';
         public const char PillarGlyph = '|';
         public const char BeamGlyph = '=';
+        public const char BrittleGlyph = 'G';
+        public const char ExplosiveGlyph = '!';
 
         public string Name { get; }
 
         /// <summary>Shots granted for this structure; the primary difficulty dial.</summary>
         public int Ammo { get; }
 
+        /// <summary>
+        /// Points needed to pass. Reaching it clears the stage even with pieces left standing,
+        /// which keeps a run winnable when the last few targets are wedged out of reach.
+        /// </summary>
+        public int TargetScore { get; }
+
         public IReadOnlyList<string> Rows { get; }
         public int Width { get; }
         public int Height => Rows.Count;
 
-        public LevelLayout(string name, int ammo, params string[] rows)
+        public LevelLayout(string name, int ammo, int targetScore, params string[] rows)
         {
             Name = name;
             Ammo = ammo;
+            TargetScore = targetScore;
             Rows = rows;
 
             var width = 0;
@@ -71,6 +82,8 @@ namespace HyperPuzzle2D.Board
                 case BallGlyph: return PieceKind.Ball;
                 case PillarGlyph: return PieceKind.Pillar;
                 case BeamGlyph: return PieceKind.Beam;
+                case BrittleGlyph: return PieceKind.Brittle;
+                case ExplosiveGlyph: return PieceKind.Explosive;
                 default: return PieceKind.None;
             }
         }

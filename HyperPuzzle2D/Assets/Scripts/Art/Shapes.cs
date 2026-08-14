@@ -9,21 +9,22 @@ namespace HyperPuzzle2D.Art
     /// </summary>
     public static class Shapes
     {
-        /// <summary>
-        /// Corner inset of <see cref="RoundedRect"/>, in world units. A sliced renderer cannot
-        /// be sized below twice this on either axis without squashing the corners.
-        /// </summary>
-        public const float RoundedRectBorder = 26f / 128f;
-
         static Sprite _solid;
         static Sprite _roundedRect;
+        static Sprite _blockRect;
         static Sprite _circle;
         static Sprite _glow;
 
         public static Sprite Solid => _solid != null ? _solid : _solid = BuildSolid();
 
         /// <summary>9-sliced panel. Use with <see cref="SpriteDrawMode.Sliced"/> or a sliced Image.</summary>
-        public static Sprite RoundedRect => _roundedRect != null ? _roundedRect : _roundedRect = BuildRoundedRect();
+        public static Sprite RoundedRect => _roundedRect != null ? _roundedRect : _roundedRect = BuildRoundedRect(22f, 26f);
+
+        /// <summary>
+        /// Playfield variant with tighter corners. Pieces are only 0.8 world units, so the panel
+        /// radius would eat most of the edge and every block would read as a pill.
+        /// </summary>
+        public static Sprite BlockRect => _blockRect != null ? _blockRect : _blockRect = BuildRoundedRect(10f, 14f);
 
         public static Sprite Circle => _circle != null ? _circle : _circle = BuildCircle();
 
@@ -67,11 +68,9 @@ namespace HyperPuzzle2D.Art
             return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
         }
 
-        static Sprite BuildRoundedRect()
+        static Sprite BuildRoundedRect(float radius, float border)
         {
             const int size = 128;
-            const float radius = 22f;
-            const float border = 26f;
 
             var tex = NewTexture(size, size);
             var pixels = new Color[size * size];

@@ -10,9 +10,13 @@ namespace HyperPuzzle2D.Feedback
     {
         public static Sfx Instance { get; private set; }
 
-        AudioSource _source;
+        readonly AudioSource[] _sources = new AudioSource[4];
+        int _sourceIndex;
         AudioClip _fire;
         AudioClip _hit;
+        AudioClip _break;
+        AudioClip _explosion;
+        AudioClip _chain;
         AudioClip _clear;
         AudioClip _fail;
         AudioClip _ui;
@@ -20,12 +24,18 @@ namespace HyperPuzzle2D.Feedback
         void Awake()
         {
             Instance = this;
-            _source = gameObject.AddComponent<AudioSource>();
-            _source.playOnAwake = false;
-            _source.spatialBlend = 0f;
+            for (var i = 0; i < _sources.Length; i++)
+            {
+                _sources[i] = gameObject.AddComponent<AudioSource>();
+                _sources[i].playOnAwake = false;
+                _sources[i].spatialBlend = 0f;
+            }
 
-            _fire = Tone("sfx_fire", 0.09f, 420f, 880f, 0.55f, NoiseMix.Soft);
-            _hit = Tone("sfx_hit", 0.07f, 180f, 90f, 0.7f, NoiseMix.Hard);
+            _fire = Tone("sfx_fire", 0.13f, 130f, 520f, 0.7f, NoiseMix.Soft);
+            _hit = Tone("sfx_hit", 0.08f, 210f, 80f, 0.72f, NoiseMix.Hard);
+            _break = Tone("sfx_break", 0.14f, 920f, 170f, 0.65f, NoiseMix.Hard);
+            _explosion = Tone("sfx_explosion", 0.26f, 110f, 42f, 0.95f, NoiseMix.Hard);
+            _chain = Tone("sfx_chain", 0.12f, 560f, 980f, 0.5f, NoiseMix.Soft);
             _clear = Chord("sfx_clear", 0.22f, new[] { 523f, 659f, 784f }, 0.45f);
             _fail = Tone("sfx_fail", 0.28f, 320f, 110f, 0.5f, NoiseMix.Soft);
             _ui = Tone("sfx_ui", 0.05f, 660f, 880f, 0.35f, NoiseMix.None);
@@ -39,20 +49,28 @@ namespace HyperPuzzle2D.Feedback
             }
         }
 
-        public void Fire() => Play(_fire, 0.85f);
-        public void Hit(bool chain) => Play(_hit, chain ? 1f : 0.75f);
+        public void Fire() => Play(_fire, 0.9f, 1f);
+        public void Hit(float strength) => Play(_hit, Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(strength)), Mathf.Lerp(1.15f, 0.82f, Mathf.Clamp01(strength)));
+        public void Break(int chain) => Play(_break, Mathf.Clamp01(0.7f + chain * 0.05f), Mathf.Min(1.45f, 0.92f + chain * 0.07f));
+        public void Explosion(int chain)
+        {
+            Play(_explosion, 1f, Mathf.Min(1.15f, 0.88f + chain * 0.03f));
+            Play(_chain, 0.75f, Mathf.Min(1.55f, 0.95f + chain * 0.08f));
+        }
         public void Cleared() => Play(_clear, 0.9f);
         public void Failed() => Play(_fail, 0.8f);
         public void Ui() => Play(_ui, 0.55f);
 
-        void Play(AudioClip clip, float volume)
+        void Play(AudioClip clip, float volume, float pitch = 1f)
         {
             if (clip == null || !Meta.Progress.SfxEnabled)
             {
                 return;
             }
 
-            _source.PlayOneShot(clip, volume);
+            var source = _sources[_sourceIndex++ % _sources.Length];
+            source.pitch = pitch;
+            source.PlayOneShot(clip, volume);
         }
 
         enum NoiseMix
