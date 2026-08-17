@@ -185,10 +185,12 @@ namespace HyperPuzzle2D.Art
 
             var button = image.gameObject.AddComponent<Button>();
             button.targetGraphic = image;
+            // These multiply the fill, which is now paper-bright on most buttons: the old 1.1x
+            // highlight clipped cream straight to white and lost the button edge entirely.
             var colors = button.colors;
             colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f);
-            colors.pressedColor = new Color(0.85f, 0.85f, 0.85f);
+            colors.highlightedColor = new Color(1.04f, 1.04f, 1.04f);
+            colors.pressedColor = new Color(0.90f, 0.88f, 0.85f);
             colors.selectedColor = Color.white;
             colors.fadeDuration = 0.08f;
             button.colors = colors;
@@ -220,7 +222,7 @@ namespace HyperPuzzle2D.Art
         public static void AddDropShadow(Graphic graphic, float distance = 3f)
         {
             var shadow = graphic.gameObject.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            shadow.effectColor = Palette.Shadow;
             shadow.effectDistance = new Vector2(distance, -distance);
         }
     }

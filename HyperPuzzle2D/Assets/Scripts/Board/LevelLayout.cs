@@ -52,16 +52,18 @@ namespace HyperPuzzle2D.Board
         public int Ammo => Loadout.Length;
 
         /// <summary>
-        /// Points needed to pass. Reaching it clears the stage even with pieces left standing,
-        /// which keeps a run winnable when the last few targets are wedged out of reach.
+        /// Points needed to pass. Zero means the stage is a clear-all board: every piece must leave
+        /// play, and wiping it awards three stars. Non-zero keeps the early teaching path where a
+        /// decent chain can pass without grinding the last wedged block.
         /// </summary>
         public int TargetScore { get; }
 
+        /// <summary>True when the stage only ends after every piece is gone.</summary>
+        public bool RequiresClearAll => TargetScore <= 0;
+
         /// <summary>
-        /// Score bars for the second and third star. A run ends the moment it passes
-        /// <see cref="TargetScore"/>, so these are not "keep playing to earn more": they measure
-        /// how much of the board came down in the chain that finished it. Chipping a stage apart
-        /// passes with one star, and taking it down in one collapse is what pays three.
+        /// Score bars for the second and third star on score-goal stages. Clear-all boards skip
+        /// these and pay three stars for the wipe itself.
         /// </summary>
         public int TwoStarScore { get; }
         public int ThreeStarScore { get; }
@@ -69,6 +71,21 @@ namespace HyperPuzzle2D.Board
         public IReadOnlyList<string> Rows { get; }
         public int Width { get; }
         public int Height => Rows.Count;
+
+        /// <summary>
+        /// Columns that actually carry a piece. Most layouts are written on a five wide grid but
+        /// only fill the middle three, so <see cref="Width"/> overstates the footprint; the pad the
+        /// structure stands on is sized from this instead, and the stack is centred on it.
+        /// </summary>
+        public int FirstColumn { get; }
+        public int LastColumn { get; }
+        public int FootprintWidth => LastColumn - FirstColumn + 1;
+
+        /// <summary>Grid column the footprint is centred on; fractional when the span is even.</summary>
+        public float CenterColumn => (FirstColumn + LastColumn) * 0.5f;
+
+        /// <summary>Localization key for the one-line weak-point tip shown on the briefing.</summary>
+        public string HintKey => "hint." + Name;
 
         public LevelLayout(string name, string loadout, int targetScore, int twoStarScore, int threeStarScore, params string[] rows)
         {
@@ -80,17 +97,37 @@ namespace HyperPuzzle2D.Board
             Rows = rows;
 
             var width = 0;
+            var first = int.MaxValue;
+            var last = -1;
             foreach (var row in rows)
             {
                 width = System.Math.Max(width, row.Length);
+                for (var column = 0; column < row.Length; column++)
+                {
+                    if (FromGlyph(row[column]) == PieceKind.None)
+                    {
+                        continue;
+                    }
+
+                    first = System.Math.Min(first, column);
+                    last = System.Math.Max(last, column);
+                }
             }
 
             Width = width;
+            FirstColumn = last < 0 ? 0 : first;
+            LastColumn = last < 0 ? System.Math.Max(0, width - 1) : last;
         }
 
         /// <summary>Stars a finished run earned, from zero (failed) to three.</summary>
-        public int StarsFor(int score)
+        public int StarsFor(int score, bool boardCleared = false)
         {
+            // Clear-all stages: the wipe is the grade. Score bars do not apply.
+            if (RequiresClearAll)
+            {
+                return boardCleared ? 3 : 0;
+            }
+
             if (score < TargetScore)
             {
                 return 0;
@@ -109,14 +146,17 @@ namespace HyperPuzzle2D.Board
         }
 
         /// <summary>The shot fired at <paramref name="shotIndex"/>, counting from the first.</summary>
-        public ProjectileKind ShotAt(int shotIndex)
+        public ProjectileKind ShotAt(int shotIndex) => ShotAt(Loadout, shotIndex);
+
+        /// <summary>Resolves a shot glyph from any loadout string, including a player-reordered one.</summary>
+        public static ProjectileKind ShotAt(string loadout, int shotIndex)
         {
-            if (shotIndex < 0 || shotIndex >= Loadout.Length)
+            if (string.IsNullOrEmpty(loadout) || shotIndex < 0 || shotIndex >= loadout.Length)
             {
                 return ProjectileKind.Ball;
             }
 
-            switch (Loadout[shotIndex])
+            switch (loadout[shotIndex])
             {
                 case ClusterShotGlyph: return ProjectileKind.Cluster;
                 case ChargeShotGlyph: return ProjectileKind.Charge;

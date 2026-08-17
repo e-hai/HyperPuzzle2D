@@ -17,7 +17,9 @@ namespace HyperPuzzle2D.Input
         // of the stack, the strongest clears it without flying off screen.
         [SerializeField] float minPower = 8f;
         [SerializeField] float maxPower = 18f;
-        [SerializeField] float maxPull = 2.5f;
+        // World units, but it has to feel like a fixed fraction of the screen: the camera locks to
+        // the field width, so this tracks FieldHalfWidth rather than being tuned on its own.
+        [SerializeField] float maxPull = 2.2f;
         [SerializeField] int previewDots = 22;
         [SerializeField] float previewStep = 0.05f;
 
@@ -278,7 +280,7 @@ namespace HyperPuzzle2D.Input
                 return default;
             }
 
-            var hits = Physics2D.CircleCastAll(origin, 0.22f, segment.normalized, segment.magnitude);
+            var hits = Physics2D.CircleCastAll(origin, Projectile.Radius, segment.normalized, segment.magnitude);
             var best = default(RaycastHit2D);
             var bestDistance = float.PositiveInfinity;
             foreach (var hit in hits)

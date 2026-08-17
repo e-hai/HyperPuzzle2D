@@ -30,13 +30,14 @@ namespace HyperPuzzle2D.Core
         // Play field is authored against these half-extents; the camera fits them to any aspect.
         // The field is deliberately narrow: the camera has to show the full width, so every extra
         // unit of width buys nothing on a phone and only pushes the zoom out, shrinking the action.
-        const float FieldHalfWidth = 4.2f;
+        // The margin here is down to what the cannon pad and the widest structure actually need.
+        const float FieldHalfWidth = 3.7f;
 
         /// <summary>
         /// Floor for the camera size. Phones never reach it (their portrait aspect always asks
         /// for more), it only keeps a wide editor Game view from zooming into the field.
         /// </summary>
-        const float MinOrthoSize = 7.2f;
+        const float MinOrthoSize = 6.2f;
 
         /// <summary>Narrowest portrait aspect worth supporting (~21:9); sizes the off-screen margins.</summary>
         const float TallestPhoneAspect = 0.42f;
@@ -49,25 +50,30 @@ namespace HyperPuzzle2D.Core
         // Shared edges for the HUD row, so the chips line up instead of drifting apart per element.
         const float HudLeft = 0.05f;
         const float HudRight = 0.95f;
-        const float HudRowBottom = 0.862f;
-        const float HudRowTop = 0.958f;
+        const float HudRowBottom = 0.888f;
+        const float HudRowTop = 0.970f;
+
+        /// <summary>Stage caption strip, tucked directly under the chips.</summary>
+        const float HudCaptionBottom = 0.854f;
+        const float HudCaptionTop = 0.884f;
 
         /// <summary>
         /// Bottom of the pit targets fall into. Must stay below the tallest phone viewport
-        /// (~-10) or blocks would blink out while still on screen.
+        /// (~-8.8) or blocks would blink out while still on screen.
         /// </summary>
-        const float ClearY = -11.5f;
+        const float ClearY = -9.5f;
 
         /// <summary>
         /// Low enough that a 5-row stack still clears the HUD on a 16:9 phone, which is the
-        /// squarest portrait screen and therefore the shortest viewport we render into.
+        /// squarest portrait screen and therefore the shortest viewport we render into, and high
+        /// enough that the pad and the pit below it both stay in frame.
         /// </summary>
-        const float ShelfTopY = -0.1f;
-        // Leaves a readable launch corridor between the muzzle and the shelf's left face.
+        const float ShelfTopY = -1.2f;
+        // Leaves a readable launch corridor between the muzzle and the pad's left face.
         // At 1.0 the muzzle sat only ~0.26 world units from that face, so normal 30–45° shots
-        // struck the shelf edge before they could rise into the structure.
-        const float ShelfCenterX = 1.4f;
-        const float BlockSize = 0.8f;
+        // struck the pad edge before they could rise into the structure.
+        const float ShelfCenterX = 1.1f;
+        const float BlockSize = 0.9f;
 
         /// <summary>
         /// Grid cell size. Must equal <see cref="BlockSize"/>: any slack makes every course drop
@@ -79,19 +85,41 @@ namespace HyperPuzzle2D.Core
         /// Narrow enough to read as a support, wide enough that a stacked pair carrying a beam
         /// is not a knife edge.
         /// </summary>
-        const float PillarWidth = 0.5f;
+        const float PillarWidth = 0.56f;
+
+        /// <summary>Radius of a loose ball piece, kept in proportion with the boxes around it.</summary>
+        const float BallRadius = 0.38f;
 
         /// <summary>
-        /// Sits just below the shelf on purpose. A big drop between cannon and target forces a
-        /// near-vertical arc, and those shots hit the underside of the shelf instead of the stack.
+        /// Muzzle height is what matters here, not the pivot: at a typical 45° the barrel tip sits
+        /// above <see cref="ShelfTopY"/>, so ordinary shots pass over the pad and into the side of
+        /// the stack. Dropping the cannon further would force near-vertical arcs that strike the
+        /// underside of the pad instead.
         /// </summary>
-        static readonly Vector3 CannonPivot = new Vector3(-2.35f, -1.9f, 0f);
+        static readonly Vector3 CannonPivot = new Vector3(-2.6f, -1.25f, 0f);
 
         /// <summary>Plinth surface the cannon stands on.</summary>
-        const float PlinthTopY = -2.55f;
+        const float PlinthTopY = -1.9f;
 
-        /// <summary>Empty rating slot: visible enough to read as "not earned yet", not as a star.</summary>
-        static readonly Color UnearnedStarTint = new Color(1f, 1f, 1f, 0.14f);
+        /// <summary>
+        /// Both pads are short slabs over an open pit. They used to run off the bottom of the
+        /// frame, which filled the tall portrait viewport with geometry no shot ever touches and
+        /// squeezed the action into a thin band across the middle.
+        /// </summary>
+        const float PlinthWidth = 1.8f;
+        const float PlinthHeight = 1.7f;
+        const float ShelfThickness = 0.5f;
+
+        /// <summary>Slab overhang past the outermost course, and the floor for a narrow stack.</summary>
+        const float ShelfMargin = 0.4f;
+        const float ShelfMinWidth = 2.6f;
+
+        /// <summary>Stub carrying the target pad; short, so the pad reads as an island.</summary>
+        const float ShelfStubWidth = 1.3f;
+        const float ShelfStubBottomY = -3.4f;
+
+        /// <summary>Empty rating slot: ink wash, visible against the paper without reading as earned.</summary>
+        static readonly Color UnearnedStarTint = new Color(0.55f, 0.48f, 0.38f, 0.45f);
 
         /// <summary>Widest loadout the ammo queue can show; longer stages would crowd the chip.</summary>
         const int MaxLoadoutPips = 6;
@@ -115,6 +143,10 @@ namespace HyperPuzzle2D.Core
         Transform _worldRoot;
         Transform _projectileRoot;
         Transform _effectRoot;
+        GameObject _shelf;
+        GameObject _shelfStub;
+        SpriteRenderer _shelfTrim;
+        float _shelfHalfWidth = ShelfMinWidth * 0.5f;
         Text _scoreText;
         Text _ammoText;
         Text _scoreCaption;
@@ -125,14 +157,22 @@ namespace HyperPuzzle2D.Core
         Text _clearScoreText;
         Text _failBestText;
         Text _clearBestText;
+        Text _failGapText;
+        Text _clearHintText;
         Text _failTitle;
         Text _clearTitle;
         Text _failReviveLabel;
         Text _failRetryLabel;
         Text _failMenuLabel;
         Text _clearNextLabel;
+        Text _clearReplayLabel;
         Text _clearMenuLabel;
         GameObject _clearMenuButton;
+        GameObject _clearReplayButton;
+        Text _pauseTitle;
+        Text _pauseResumeLabel;
+        Text _pauseRetryLabel;
+        Text _pauseHomeLabel;
         Text _menuTitle;
         Text _menuTagline;
         Text _menuBestText;
@@ -164,6 +204,8 @@ namespace HyperPuzzle2D.Core
         GameObject _hudRoot;
         GameObject _failPanel;
         GameObject _clearPanel;
+        GameObject _pausePanel;
+        GameObject _briefingPanel;
         GameObject _menuPanel;
         GameObject _splashPanel;
         GameObject _stageSelectPanel;
@@ -173,6 +215,7 @@ namespace HyperPuzzle2D.Core
         LevelLayout _layout;
         AppScreen _screen = AppScreen.Splash;
         bool _shotInFlight;
+        bool _paused;
         int _liveProjectiles;
         float _lastDestructionTime;
         Vector3 _lastScorePosition;
@@ -181,7 +224,30 @@ namespace HyperPuzzle2D.Core
         bool _splashFinished;
         Coroutine _splashRoutine;
 
+        /// <summary>Shots for the active run, possibly reordered on the briefing or mid-run.</summary>
+        string _runLoadout = "B";
+        int _targetTotal;
+
+        int _briefingStage;
+        string _briefingLoadout = "B";
+        int _briefingPick = -1;
+        Text _briefingTitle;
+        Text _briefingHint;
+        Text _briefingGoal;
+        Text _briefingLoadoutCaption;
+        Text _briefingStartLabel;
+        Text _briefingBackLabel;
+        Image[] _briefingPips;
+        Button[] _briefingPipButtons;
+        Transform _briefingSilhouetteRoot;
+        readonly List<Transform> _stageSilhouetteRoots = new List<Transform>();
+        readonly List<Image[]> _stageLoadoutPips = new List<Image[]>();
+        Text _swapHint;
+
         public GameLoop Loop => _loop;
+
+        /// <summary>True while the in-run pause sheet is up; hit-stop restores to this instead of 1.</summary>
+        public bool IsPaused => _paused;
 
         void Awake()
         {
@@ -214,7 +280,7 @@ namespace HyperPuzzle2D.Core
 
             // The cannon ignores input while a shot is out, which leaves the tap free to mean
             // "go off now" for the shots that carry a special.
-            if (_screen == AppScreen.Play && _shotInFlight &&
+            if (_screen == AppScreen.Play && !_paused && _shotInFlight &&
                 UnityEngine.Input.GetMouseButtonDown(0) && !PointerOverUi())
             {
                 TriggerLiveSpecials();
@@ -240,13 +306,19 @@ namespace HyperPuzzle2D.Core
         void OnDestroy()
         {
             Loc.Changed -= OnLanguageChanged;
+            if (_paused)
+            {
+                Time.timeScale = 1f;
+                _paused = false;
+            }
+
             if (Instance == this)
             {
                 Instance = null;
             }
         }
 
-        public void BeginRun(RunMode mode, int stageIndex = 0)
+        public void BeginRun(RunMode mode, int stageIndex = 0, string loadoutOverride = null)
         {
             runMode = mode;
             _stageIndex = Mathf.Clamp(stageIndex, 0, Mathf.Max(0, LevelLibrary.Count - 1));
@@ -269,13 +341,18 @@ namespace HyperPuzzle2D.Core
             SetScreen(AppScreen.Play);
             ClearBoard();
             SpawnStructure();
-            _loop.StartRun(mode, _layout.Ammo, _blocks.Count, _layout.TargetScore);
+            _runLoadout = string.IsNullOrEmpty(loadoutOverride) ? _layout.Loadout : loadoutOverride;
+            _targetTotal = _blocks.Count;
+            _loop.StartRun(mode, _runLoadout.Length, _blocks.Count, _layout.TargetScore);
             _cannon.ArmAfterPointerRelease();
             _shotInFlight = false;
             _liveProjectiles = 0;
             HideShotHint();
+            SetPaused(false);
             if (_failPanel != null) _failPanel.SetActive(false);
             if (_clearPanel != null) _clearPanel.SetActive(false);
+            if (_pausePanel != null) _pausePanel.SetActive(false);
+            if (_briefingPanel != null) _briefingPanel.SetActive(false);
             RefreshHud();
             RefreshFtue();
             RefreshClearActions();
@@ -317,9 +394,9 @@ namespace HyperPuzzle2D.Core
             _projectileRoot = new GameObject("Projectiles").transform;
             _effectRoot = new GameObject("Effects").transform;
 
-            var backdrop = BuildBackdrop(cam);
+            var backdrop = BuildBackdrop(cam, out var grain);
             _viewportFitter = cam.gameObject.AddComponent<ViewportFitter>();
-            _viewportFitter.Configure(FieldHalfWidth, MinOrthoSize, backdrop);
+            _viewportFitter.Configure(FieldHalfWidth, MinOrthoSize, backdrop, grain);
 
             BuildTerrain();
             BuildCannon();
@@ -335,8 +412,12 @@ namespace HyperPuzzle2D.Core
             _loop.ScoreAwarded += OnScoreAwarded;
         }
 
-        /// <summary>Returns the gradient transform so the viewport fitter can keep it full-bleed.</summary>
-        Transform BuildBackdrop(Camera cam)
+        /// <summary>
+        /// Returns the gradient transform so the viewport fitter can keep it full-bleed, and hands
+        /// back the paper grain separately: it is tiled, so the fitter has to drive its draw size
+        /// instead of its scale.
+        /// </summary>
+        Transform BuildBackdrop(Camera cam, out SpriteRenderer grain)
         {
             var root = new GameObject("Backdrop").transform;
             root.SetParent(_worldRoot);
@@ -351,15 +432,29 @@ namespace HyperPuzzle2D.Core
             gradientRenderer.sprite = Shapes.VerticalGradient(Palette.BackdropBottom, Palette.BackdropTop);
             gradientRenderer.sortingOrder = SortingOrders.Backdrop;
 
+            // Washi grain over the flat gradient. Kept faint: it should register as texture when
+            // the eye rests on an empty area, not as noise competing with the pieces.
+            var grainGo = new GameObject("PaperGrain");
+            grainGo.transform.SetParent(root, false);
+            grain = grainGo.AddComponent<SpriteRenderer>();
+            grain.sprite = Shapes.PaperFiber;
+            grain.drawMode = SpriteDrawMode.Tiled;
+            grain.tileMode = SpriteTileMode.Continuous;
+            grain.size = new Vector2(viewWidth, viewHeight);
+            grain.color = new Color(Palette.Shadow.r, Palette.Shadow.g, Palette.Shadow.b, 0.14f);
+            grain.sortingOrder = SortingOrders.BackdropGrain;
+
             // Warm pool of light behind the target stack draws the eye to the objective.
             var glow = new GameObject("Glow");
             glow.transform.SetParent(root, false);
             glow.transform.position = new Vector3(ShelfCenterX, ShelfTopY + 1.6f, 0f);
-            glow.transform.localScale = Vector3.one * 11f;
+            glow.transform.localScale = Vector3.one * 8.5f;
             var glowRenderer = glow.AddComponent<SpriteRenderer>();
             glowRenderer.sprite = Shapes.Glow;
-            glowRenderer.color = new Color(Palette.BackdropGlow.r, Palette.BackdropGlow.g, Palette.BackdropGlow.b, 0.32f);
+            glowRenderer.color = new Color(Palette.BackdropGlow.r, Palette.BackdropGlow.g, Palette.BackdropGlow.b, 0.24f);
             glowRenderer.sortingOrder = SortingOrders.BackdropGlow;
+
+            BuildSiteScenery(root);
 
             // Spread over the tallest viewport a phone can ask for, so the squarer models do not
             // get a band of motes bunched into the middle of the screen.
@@ -377,9 +472,14 @@ namespace HyperPuzzle2D.Core
                 var size = Mathf.Lerp(0.08f, 0.26f, (float)rng.NextDouble());
                 mote.transform.localScale = Vector3.one * size;
 
+                // Drifting petals. These used to be white specks, which read as dust against a
+                // dark site but disappear completely on paper; the tint has to be darker than the
+                // backdrop now, not lighter.
                 var moteRenderer = mote.AddComponent<SpriteRenderer>();
                 moteRenderer.sprite = Shapes.Circle;
-                moteRenderer.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.04f, 0.14f, (float)rng.NextDouble()));
+                moteRenderer.color = new Color(
+                    Palette.Accent.r, Palette.Accent.g, Palette.Accent.b,
+                    Mathf.Lerp(0.10f, 0.22f, (float)rng.NextDouble()));
                 moteRenderer.sortingOrder = SortingOrders.BackdropDecor;
 
                 mote.AddComponent<FloatingMote>().Configure(
@@ -390,21 +490,134 @@ namespace HyperPuzzle2D.Core
             return gradient.transform;
         }
 
+        /// <summary>
+        /// Scenery for the frame above and below the pads. The supports used to run off the bottom
+        /// of the screen to cover that space; skyline and rigging cover it without putting inert
+        /// geometry inside the play area, and they give the pads a depth to sit in front of.
+        /// </summary>
+        void BuildSiteScenery(Transform root)
+        {
+            var rng = new System.Random(19);
+            var halfWidth = FieldHalfWidth + 0.4f;
+
+            BuildSkylineBand(root, rng, halfWidth, -3.9f, -5f, 0.9f, Palette.SkylineFar, SortingOrders.SkylineFar);
+            BuildSkylineBand(root, rng, halfWidth, -4.8f, -5.9f, 1.25f, Palette.SkylineNear, SortingOrders.SkylineNear);
+
+            // Tower crane over the site. The mast stands clear of the cannon pad so it reads
+            // against the sky rather than merging into the platform silhouette.
+            const float mastX = -3.15f;
+            CreateBackdropShape(root, "CraneMast", new Vector3(mastX, 1.5f, 0f), new Vector2(0.16f, 5.2f), Palette.Rigging, SortingOrders.Rigging);
+            CreateBackdropShape(root, "CraneJib", new Vector3(mastX + 1.1f, 3.9f, 0f), new Vector2(2.9f, 0.14f), Palette.Rigging, SortingOrders.Rigging);
+            CreateBackdropShape(root, "CraneHoist", new Vector3(mastX + 2.1f, 3.35f, 0f), new Vector2(0.05f, 1f), Palette.Rigging, SortingOrders.Rigging);
+            CreateBackdropShape(root, "CraneHook", new Vector3(mastX + 2.1f, 2.8f, 0f), new Vector2(0.3f, 0.16f), Palette.Rigging, SortingOrders.Rigging);
+
+            CreateBackdropGlow(root, "PadLight", new Vector3(CannonPivot.x + 0.4f, PlinthTopY + 0.2f, 0f), 2.6f, 0.16f);
+            CreateBackdropGlow(root, "PitLight", new Vector3(ShelfCenterX - 0.6f, -3.9f, 0f), 4.2f, 0.09f);
+        }
+
+        static void BuildSkylineBand(Transform root, System.Random rng, float halfWidth, float topNear, float topFar, float span, Color color, int sortingOrder)
+        {
+            // Far below the tallest viewport, so no phone ever sees a skyline block end.
+            const float baseY = -9.4f;
+
+            var x = -halfWidth;
+            var index = 0;
+            while (x < halfWidth)
+            {
+                var width = Mathf.Min(span * Mathf.Lerp(0.7f, 1.5f, (float)rng.NextDouble()), halfWidth - x);
+                if (width < 0.15f)
+                {
+                    break;
+                }
+
+                var top = Mathf.Lerp(topNear, topFar, (float)rng.NextDouble());
+                var height = top - baseY;
+                CreateBackdropShape(root, "Skyline" + index++, new Vector3(x + width * 0.5f, top - height * 0.5f, 0f), new Vector2(width, height), color, sortingOrder);
+                x += width;
+            }
+        }
+
+        static void CreateBackdropShape(Transform parent, string name, Vector3 position, Vector2 size, Color color, int sortingOrder)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.position = position;
+            go.transform.localScale = new Vector3(size.x, size.y, 1f);
+
+            var renderer = go.AddComponent<SpriteRenderer>();
+            renderer.sprite = Shapes.Solid;
+            renderer.color = color;
+            renderer.sortingOrder = sortingOrder;
+        }
+
+        static void CreateBackdropGlow(Transform parent, string name, Vector3 position, float scale, float alpha)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.position = position;
+            go.transform.localScale = Vector3.one * scale;
+
+            var renderer = go.AddComponent<SpriteRenderer>();
+            renderer.sprite = Shapes.Glow;
+            renderer.color = new Color(Palette.BackdropGlow.r, Palette.BackdropGlow.g, Palette.BackdropGlow.b, alpha);
+            renderer.sortingOrder = SortingOrders.BackdropGlow;
+        }
+
         void BuildTerrain()
         {
-            // Both supports run off the bottom of the frame: the play field is far taller than the
-            // action, and grounded pillars fill that space instead of leaving it empty.
-            var plinthHeight = PlinthTopY - ClearY;
-            CreateSolid("Plinth", new Vector3(CannonPivot.x, PlinthTopY - plinthHeight * 0.5f, 0f), new Vector2(2.6f, plinthHeight), Palette.Ground);
-            CreateHazardTrim("PlinthTrim", new Vector3(CannonPivot.x, PlinthTopY - 0.09f, 0f), new Vector2(2.6f, 0.18f));
+            CreateSolid("Plinth", new Vector3(CannonPivot.x, PlinthTopY - PlinthHeight * 0.5f, 0f), new Vector2(PlinthWidth, PlinthHeight), Palette.Ground);
+            CreateHazardTrim("PlinthTrim", new Vector3(CannonPivot.x, PlinthTopY - 0.09f, 0f), new Vector2(PlinthWidth, 0.18f));
 
-            // Support column: the target shelf is an island, so knocked-off blocks fall away.
-            var shelfBottom = ShelfTopY - 0.5f;
-            var columnHeight = shelfBottom - ClearY;
-            CreateSolid("Column", new Vector3(ShelfCenterX, shelfBottom - columnHeight * 0.5f, 0f), new Vector2(1.1f, columnHeight), Palette.Wall);
+            // The target pad is an island so knocked-off pieces fall clear on either side. Its
+            // width is set per level by LayoutShelf; a three column stack marooned on a five column
+            // slab was most of why the structure read as small.
+            _shelfStub = CreateSolid("ShelfStub", new Vector3(ShelfCenterX, 0f, 0f), new Vector2(ShelfStubWidth, 1f), Palette.PadStub);
+            _shelf = CreateSolid("Shelf", new Vector3(ShelfCenterX, 0f, 0f), new Vector2(ShelfMinWidth, ShelfThickness), Palette.Shelf);
+            _shelfTrim = CreateHazardTrim("ShelfTrim", new Vector3(ShelfCenterX, ShelfTopY - 0.09f, 0f), new Vector2(ShelfMinWidth, 0.18f));
 
-            CreateSolid("Shelf", new Vector3(ShelfCenterX, ShelfTopY - 0.25f, 0f), new Vector2(4.4f, 0.5f), Palette.Shelf);
-            CreateHazardTrim("ShelfTrim", new Vector3(ShelfCenterX, ShelfTopY - 0.09f, 0f), new Vector2(4.4f, 0.18f));
+            LayoutShelf(ShelfMinWidth);
+        }
+
+        /// <summary>
+        /// Resizes the target pad to the stack standing on it. The half width is cached because the
+        /// knock-off bounds handed to every piece key off the pad edges.
+        /// </summary>
+        void LayoutShelf(float width)
+        {
+            _shelfHalfWidth = width * 0.5f;
+
+            ResizeSolid(_shelf, new Vector3(ShelfCenterX, ShelfTopY - ShelfThickness * 0.5f, 0f), new Vector2(width, ShelfThickness));
+
+            if (_shelfTrim != null)
+            {
+                _shelfTrim.size = new Vector2(width, 0.18f);
+            }
+
+            var stubTop = ShelfTopY - ShelfThickness;
+            var stubHeight = stubTop - ShelfStubBottomY;
+            ResizeSolid(_shelfStub, new Vector3(ShelfCenterX, stubTop - stubHeight * 0.5f, 0f), new Vector2(ShelfStubWidth, stubHeight));
+        }
+
+        static void ResizeSolid(GameObject solid, Vector3 position, Vector2 size)
+        {
+            if (solid == null)
+            {
+                return;
+            }
+
+            solid.transform.position = position;
+
+            var renderer = solid.GetComponent<SpriteRenderer>();
+            if (renderer != null)
+            {
+                renderer.size = size;
+            }
+
+            var collider = solid.GetComponent<BoxCollider2D>();
+            if (collider != null)
+            {
+                collider.size = size;
+            }
         }
 
         void BuildCannon()
@@ -465,9 +678,9 @@ namespace HyperPuzzle2D.Core
             _hudRoot = UiFactory.NewUiObject("Hud", canvasGo.transform);
             UiFactory.Anchor((RectTransform)_hudRoot.transform, Vector2.zero, Vector2.one);
 
-            // One row, equal gutters, shared chip height: home on the left where a back action is
-            // expected, the objective in the middle at the largest size, ammo on the right.
-            _hudHomeLabel = UiFactory.Pill(_hudRoot.transform, Loc.Get("common.menu"), new Vector2(HudLeft, HudRowBottom), new Vector2(0.20f, HudRowTop), Palette.HudPanel, Palette.TextPrimary, 26, ShowHome).GetComponentInChildren<Text>();
+            // Pause sits where "home" used to: quitting mid-run without a confirm was too easy,
+            // and every demolition game in the genre puts restart behind a pause sheet.
+            _hudHomeLabel = UiFactory.Pill(_hudRoot.transform, Loc.Get("hud.pause"), new Vector2(HudLeft, HudRowBottom), new Vector2(0.20f, HudRowTop), Palette.HudPanel, Palette.TextPrimary, 26, ShowPause).GetComponentInChildren<Text>();
 
             _scoreText = CreateHudChip(_hudRoot.transform, "ScoreChip", new Vector2(0.225f, HudRowBottom), new Vector2(0.715f, HudRowTop), Loc.Get("hud.scoreCaption"), TextAnchor.MiddleLeft, out _scoreCaption, out var scoreChip);
 
@@ -480,13 +693,19 @@ namespace HyperPuzzle2D.Core
 
             _ammoText = CreateHudChip(_hudRoot.transform, "AmmoChip", new Vector2(0.74f, HudRowBottom), new Vector2(HudRight, HudRowTop), Loc.Get("hud.ammoCaption"), TextAnchor.MiddleCenter, out _ammoCaption, out var ammoChip);
 
-            // The loadout is fixed per stage, so the queue has to be visible before it matters:
-            // the player picks an aim knowing the next round is a charge, not after firing it.
+            // The loadout is visible before it matters: the player picks an aim knowing the next
+            // round is a charge. Tapping the chip swaps the next two unfired shots.
             _ammoPips = CreateAmmoPips(ammoChip.transform, new Vector2(0.08f, 0.06f), new Vector2(0.92f, 0.22f));
+            var ammoButton = ammoChip.gameObject.AddComponent<Button>();
+            ammoButton.targetGraphic = ammoChip;
+            ammoButton.onClick.AddListener(SwapNextTwoShots);
 
-            _targetsText = UiFactory.Label(_hudRoot.transform, "Targets", new Vector2(HudLeft, 0.812f), new Vector2(HudRight, 0.852f), 26, TextAnchor.MiddleCenter, Palette.TextMuted);
+            _targetsText = UiFactory.Label(_hudRoot.transform, "Targets", new Vector2(HudLeft, HudCaptionBottom), new Vector2(0.62f, HudCaptionTop), 24, TextAnchor.MiddleLeft, Palette.TextMuted);
+            _swapHint = UiFactory.Label(_hudRoot.transform, "SwapHint", new Vector2(0.62f, HudCaptionBottom), new Vector2(HudRight, HudCaptionTop), 20, TextAnchor.MiddleRight, Palette.TextMuted);
 
-            _shotHint = UiFactory.Label(_hudRoot.transform, "ShotHint", new Vector2(0.08f, 0.29f), new Vector2(0.92f, 0.36f), 34, TextAnchor.MiddleCenter, Palette.AccentCool, FontStyle.Bold);
+            // Over the pit rather than the cannon pad: the hint fires while a shot is in the air,
+            // which is exactly when the player is watching that part of the screen.
+            _shotHint = UiFactory.Label(_hudRoot.transform, "ShotHint", new Vector2(0.08f, 0.13f), new Vector2(0.92f, 0.2f), 32, TextAnchor.MiddleCenter, Palette.AccentCool, FontStyle.Bold);
             UiFactory.AddDropShadow(_shotHint, 3f);
             _shotHint.gameObject.SetActive(false);
 
@@ -506,12 +725,15 @@ namespace HyperPuzzle2D.Core
                 out _failTitle,
                 card =>
                 {
-                    _failReviveLabel = UiFactory.Pill(card, Loc.Get("fail.revive"), new Vector2(0.08f, 0.34f), new Vector2(0.92f, 0.47f), Palette.Accent, Palette.TextOnAccent, 34, OnReviveClicked).GetComponentInChildren<Text>();
-                    _failRetryLabel = UiFactory.Pill(card, Loc.Get("fail.retry"), new Vector2(0.08f, 0.19f), new Vector2(0.92f, 0.32f), Palette.CannonHub, Palette.TextPrimary, 34, () =>
+                    // Gap lines replace the generic "best" read on stage fails: the player already
+                    // knows they lost, what they need is how far the goal still was.
+                    _failGapText = UiFactory.Label(card, "Gap", new Vector2(0.06f, 0.44f), new Vector2(0.94f, 0.53f), 26, TextAnchor.MiddleCenter, Palette.Accent);
+                    _failReviveLabel = UiFactory.Pill(card, Loc.Get("fail.revive"), new Vector2(0.08f, 0.30f), new Vector2(0.92f, 0.42f), Palette.Accent, Palette.TextOnAccent, 34, OnReviveClicked).GetComponentInChildren<Text>();
+                    _failRetryLabel = UiFactory.Pill(card, Loc.Get("fail.retry"), new Vector2(0.08f, 0.16f), new Vector2(0.92f, 0.28f), Palette.CannonHub, Palette.TextOnAccent, 34, () =>
                     {
                         ShowInterstitialThen(RetryCurrentRun);
                     }).GetComponentInChildren<Text>();
-                    _failMenuLabel = UiFactory.Pill(card, Loc.Get("common.menu"), new Vector2(0.08f, 0.04f), new Vector2(0.92f, 0.17f), Palette.HudFill, Palette.TextPrimary, 30, ShowHome).GetComponentInChildren<Text>();
+                    _failMenuLabel = UiFactory.Pill(card, Loc.Get("common.menu"), new Vector2(0.08f, 0.03f), new Vector2(0.92f, 0.14f), Palette.HudFill, Palette.TextPrimary, 30, ShowHome).GetComponentInChildren<Text>();
                 });
 
             _clearPanel = BuildResultPanel(
@@ -523,17 +745,51 @@ namespace HyperPuzzle2D.Core
                 out _clearTitle,
                 card =>
                 {
-                    _clearStarIcons = CreateStarRow(card, new Vector2(0.24f, 0.42f), new Vector2(0.76f, 0.53f), out _clearStarRow);
-                    _clearNextLabel = UiFactory.Pill(card, Loc.Get("clear.next"), new Vector2(0.08f, 0.24f), new Vector2(0.92f, 0.4f), Palette.AccentCool, Palette.TextOnAccent, 38, OnClearNextClicked).GetComponentInChildren<Text>();
-                    _clearMenuButton = UiFactory.Pill(card, Loc.Get("common.menu"), new Vector2(0.08f, 0.05f), new Vector2(0.92f, 0.21f), Palette.HudFill, Palette.TextPrimary, 32, ShowHome).gameObject;
+                    _clearStarIcons = CreateStarRow(card, new Vector2(0.24f, 0.42f), new Vector2(0.76f, 0.52f), out _clearStarRow);
+                    _clearHintText = UiFactory.Label(card, "Hint", new Vector2(0.06f, 0.34f), new Vector2(0.94f, 0.42f), 26, TextAnchor.MiddleCenter, Palette.Accent);
+                    _clearNextLabel = UiFactory.Pill(card, Loc.Get("clear.next"), new Vector2(0.08f, 0.22f), new Vector2(0.92f, 0.33f), Palette.AccentCool, Palette.TextOnAccent, 34, OnClearNextClicked).GetComponentInChildren<Text>();
+                    _clearReplayButton = UiFactory.Pill(card, Loc.Get("clear.replayStars"), new Vector2(0.08f, 0.11f), new Vector2(0.92f, 0.21f), Palette.CannonHub, Palette.TextOnAccent, 30, OnClearReplayClicked).gameObject;
+                    _clearReplayLabel = _clearReplayButton.GetComponentInChildren<Text>();
+                    _clearMenuButton = UiFactory.Pill(card, Loc.Get("common.menu"), new Vector2(0.08f, 0.02f), new Vector2(0.92f, 0.10f), Palette.HudFill, Palette.TextPrimary, 28, ShowHome).gameObject;
                     _clearMenuLabel = _clearMenuButton.GetComponentInChildren<Text>();
                 });
 
+            _pausePanel = BuildPause(canvasGo.transform);
+            _briefingPanel = BuildBriefing(canvasGo.transform);
             _menuPanel = BuildHome(canvasGo.transform);
             _stageSelectPanel = BuildStageSelect(canvasGo.transform);
             _settingsPanel = BuildSettings(canvasGo.transform);
             _splashPanel = BuildSplash(canvasGo.transform);
             SetHudVisible(false);
+        }
+
+        GameObject BuildPause(Transform parent)
+        {
+            var root = UiFactory.NewUiObject("PausePanel", parent);
+            UiFactory.Anchor((RectTransform)root.transform, Vector2.zero, Vector2.one);
+
+            UiFactory.Scrim(root.transform, "Scrim", Palette.Scrim);
+
+            var card = UiFactory.Panel(root.transform, "Card", new Vector2(0.12f, 0.30f), new Vector2(0.88f, 0.70f), Palette.CardFill, 0.45f);
+            UiFactory.Panel(card.transform, "Accent", new Vector2(0.35f, 0.95f), new Vector2(0.65f, 0.975f), Palette.Accent, 3f);
+
+            _pauseTitle = UiFactory.Label(card.transform, "Title", new Vector2(0.06f, 0.78f), new Vector2(0.94f, 0.92f), 48, TextAnchor.MiddleCenter, Palette.TextPrimary, FontStyle.Bold, Loc.Get("pause.title"));
+            UiFactory.AddDropShadow(_pauseTitle, 4f);
+
+            _pauseResumeLabel = UiFactory.Pill(card.transform, Loc.Get("pause.resume"), new Vector2(0.1f, 0.52f), new Vector2(0.9f, 0.68f), Palette.AccentCool, Palette.TextOnAccent, 34, ResumePause).GetComponentInChildren<Text>();
+            _pauseRetryLabel = UiFactory.Pill(card.transform, Loc.Get("pause.retry"), new Vector2(0.1f, 0.32f), new Vector2(0.9f, 0.48f), Palette.CannonHub, Palette.TextOnAccent, 32, () =>
+            {
+                SetPaused(false);
+                ShowInterstitialThen(RetryCurrentRun);
+            }).GetComponentInChildren<Text>();
+            _pauseHomeLabel = UiFactory.Pill(card.transform, Loc.Get("common.menu"), new Vector2(0.1f, 0.12f), new Vector2(0.9f, 0.28f), Palette.HudFill, Palette.TextPrimary, 30, () =>
+            {
+                SetPaused(false);
+                ShowHome();
+            }).GetComponentInChildren<Text>();
+
+            root.SetActive(false);
+            return root;
         }
 
         GameObject BuildSplash(Transform parent)
@@ -595,7 +851,7 @@ namespace HyperPuzzle2D.Core
             _homeStarIcon.sprite = Shapes.Star;
             _homeStarIcon.preserveAspect = true;
             _homeStarIcon.raycastTarget = false;
-            _homeStarIcon.color = Palette.GroundEdge;
+            _homeStarIcon.color = Palette.StarGold;
             UiFactory.Anchor(_homeStarIcon.rectTransform, new Vector2(0.63f, 0.62f), new Vector2(0.73f, 0.88f));
 
             _homeStarText = UiFactory.Label(progressCard.transform, "StarTotal", new Vector2(0.74f, 0.58f), new Vector2(0.94f, 0.92f), 30, TextAnchor.MiddleLeft, Palette.TextPrimary, FontStyle.Bold);
@@ -618,7 +874,7 @@ namespace HyperPuzzle2D.Core
                 BeginRun(RunMode.Daily);
             }).GetComponentInChildren<Text>();
 
-            _menuEndlessLabel = UiFactory.Pill(root.transform, Loc.Get("menu.endless"), new Vector2(0.12f, 0.135f), new Vector2(0.88f, 0.23f), Palette.CannonHub, Palette.TextPrimary, 30, () =>
+            _menuEndlessLabel = UiFactory.Pill(root.transform, Loc.Get("menu.endless"), new Vector2(0.12f, 0.135f), new Vector2(0.88f, 0.23f), Palette.CannonHub, Palette.TextOnAccent, 30, () =>
             {
                 Sfx.Instance?.Ui();
                 BeginRun(RunMode.Endless);
@@ -642,7 +898,7 @@ namespace HyperPuzzle2D.Core
 
             _sfxToggleLabel = UiFactory.Pill(card.transform, SettingsCaption(true), new Vector2(0.1f, 0.62f), new Vector2(0.9f, 0.75f), Palette.HudFill, Palette.TextPrimary, 28, ToggleSfx).GetComponentInChildren<Text>();
             _hapticsToggleLabel = UiFactory.Pill(card.transform, SettingsCaption(false), new Vector2(0.1f, 0.46f), new Vector2(0.9f, 0.59f), Palette.HudFill, Palette.TextPrimary, 28, ToggleHaptics).GetComponentInChildren<Text>();
-            _langToggleLabel = UiFactory.Pill(card.transform, Loc.LanguageToggleCaption(), new Vector2(0.1f, 0.3f), new Vector2(0.9f, 0.43f), Palette.CannonHub, Palette.TextPrimary, 28, ToggleLanguage).GetComponentInChildren<Text>();
+            _langToggleLabel = UiFactory.Pill(card.transform, Loc.LanguageToggleCaption(), new Vector2(0.1f, 0.3f), new Vector2(0.9f, 0.43f), Palette.CannonHub, Palette.TextOnAccent, 28, ToggleLanguage).GetComponentInChildren<Text>();
 
             _settingsCloseLabel = UiFactory.Pill(card.transform, Loc.Get("settings.close"), new Vector2(0.2f, 0.08f), new Vector2(0.8f, 0.21f), Palette.Accent, Palette.TextOnAccent, 30, HideSettings).GetComponentInChildren<Text>();
 
@@ -657,53 +913,114 @@ namespace HyperPuzzle2D.Core
 
             UiFactory.Scrim(root.transform, "Scrim", Palette.Scrim);
 
-            var card = UiFactory.Panel(root.transform, "Card", new Vector2(0.08f, 0.1f), new Vector2(0.92f, 0.9f), Palette.CardFill, 0.45f);
+            var card = UiFactory.Panel(root.transform, "Card", new Vector2(0.06f, 0.06f), new Vector2(0.94f, 0.94f), Palette.CardFill, 0.45f);
             UiFactory.Panel(card.transform, "Accent", new Vector2(0.35f, 0.955f), new Vector2(0.65f, 0.978f), Palette.Accent, 3f);
 
-            _stageSelectTitle = UiFactory.Label(card.transform, "Title", new Vector2(0.06f, 0.88f), new Vector2(0.94f, 0.95f), 42, TextAnchor.MiddleCenter, Palette.TextPrimary, FontStyle.Bold, Loc.Get("stage.title"));
+            _stageSelectTitle = UiFactory.Label(card.transform, "Title", new Vector2(0.06f, 0.90f), new Vector2(0.94f, 0.97f), 40, TextAnchor.MiddleCenter, Palette.TextPrimary, FontStyle.Bold, Loc.Get("stage.title"));
 
             _stageButtons.Clear();
             _stageLabels.Clear();
             _stageStarIcons.Clear();
+            _stageSilhouetteRoots.Clear();
+            _stageLoadoutPips.Clear();
 
             const int columns = 2;
             var count = LevelLibrary.Count;
+            var rows = (count + columns - 1) / columns;
+            const float gridTop = 0.88f;
+            const float gridBottom = 0.14f;
+            var slotHeight = (gridTop - gridBottom) / rows;
+            const float gap = 0.012f;
+
             for (var i = 0; i < count; i++)
             {
                 var index = i;
                 var col = i % columns;
                 var row = i / columns;
-                var rows = (count + columns - 1) / columns;
-
-                var x0 = 0.08f + col * 0.44f;
-                var x1 = x0 + 0.38f;
-                var top = 0.82f - row * (0.58f / Mathf.Max(1, rows));
-                var bottom = top - 0.1f;
+                var x0 = 0.05f + col * 0.46f;
+                var x1 = x0 + 0.42f;
+                var top = gridTop - row * slotHeight;
+                var bottom = top - slotHeight + gap;
 
                 var button = UiFactory.Pill(
                     card.transform,
-                    Loc.Format("stage.item", i + 1, Loc.LevelName(LevelLibrary.Get(i).Name)),
+                    string.Empty,
                     new Vector2(x0, bottom),
                     new Vector2(x1, top),
                     Palette.HudFill,
                     Palette.TextPrimary,
-                    24,
+                    22,
                     () => OnStageChosen(index));
 
-                // Split the pill: stage name on top, its earned rating underneath.
-                var label = button.GetComponentInChildren<Text>();
-                UiFactory.Anchor(label.rectTransform, new Vector2(0f, 0.36f), Vector2.one);
+                // Empty the default full-bleed label; name lives in a dedicated slot beside the
+                // silhouette so the structure reads at a glance without opening the briefing.
+                var defaultLabel = button.GetComponentInChildren<Text>();
+                if (defaultLabel != null)
+                {
+                    defaultLabel.gameObject.SetActive(false);
+                }
 
+                var silRoot = UiFactory.NewUiObject("Silhouette", button.transform);
+                UiFactory.Anchor((RectTransform)silRoot.transform, new Vector2(0.06f, 0.12f), new Vector2(0.40f, 0.88f));
+                FillSilhouette(silRoot.transform, LevelLibrary.Get(i));
+                _stageSilhouetteRoots.Add(silRoot.transform);
+
+                var label = UiFactory.Label(button.transform, "Name", new Vector2(0.44f, 0.55f), new Vector2(0.96f, 0.92f), 22, TextAnchor.MiddleLeft, Palette.TextPrimary, FontStyle.Bold);
                 _stageButtons.Add(button);
                 _stageLabels.Add(label);
-                _stageStarIcons.Add(CreateStarRow(button.transform, new Vector2(0.32f, 0.1f), new Vector2(0.68f, 0.34f), out _));
+                _stageStarIcons.Add(CreateStarRow(button.transform, new Vector2(0.46f, 0.30f), new Vector2(0.94f, 0.54f), out _));
+                _stageLoadoutPips.Add(CreateAmmoPips(button.transform, new Vector2(0.46f, 0.06f), new Vector2(0.94f, 0.28f)));
             }
 
-            _stageBackLabel = UiFactory.Pill(card.transform, Loc.Get("common.back"), new Vector2(0.2f, 0.04f), new Vector2(0.8f, 0.12f), Palette.CannonHub, Palette.TextPrimary, 28, () =>
+            _stageBackLabel = UiFactory.Pill(card.transform, Loc.Get("common.back"), new Vector2(0.2f, 0.03f), new Vector2(0.8f, 0.11f), Palette.CannonHub, Palette.TextOnAccent, 28, () =>
             {
                 Sfx.Instance?.Ui();
                 ShowHome();
             }).GetComponentInChildren<Text>();
+
+            root.SetActive(false);
+            return root;
+        }
+
+        GameObject BuildBriefing(Transform parent)
+        {
+            var root = UiFactory.NewUiObject("BriefingPanel", parent);
+            UiFactory.Anchor((RectTransform)root.transform, Vector2.zero, Vector2.one);
+
+            UiFactory.Scrim(root.transform, "Scrim", Palette.Scrim);
+
+            var card = UiFactory.Panel(root.transform, "Card", new Vector2(0.08f, 0.12f), new Vector2(0.92f, 0.88f), Palette.CardFill, 0.45f);
+            UiFactory.Panel(card.transform, "Accent", new Vector2(0.35f, 0.95f), new Vector2(0.65f, 0.975f), Palette.Accent, 3f);
+
+            _briefingTitle = UiFactory.Label(card.transform, "Title", new Vector2(0.06f, 0.86f), new Vector2(0.94f, 0.95f), 40, TextAnchor.MiddleCenter, Palette.TextPrimary, FontStyle.Bold);
+            UiFactory.AddDropShadow(_briefingTitle, 3f);
+
+            var sil = UiFactory.NewUiObject("Silhouette", card.transform);
+            UiFactory.Anchor((RectTransform)sil.transform, new Vector2(0.18f, 0.52f), new Vector2(0.82f, 0.84f));
+            _briefingSilhouetteRoot = sil.transform;
+
+            _briefingHint = UiFactory.Label(card.transform, "Hint", new Vector2(0.08f, 0.42f), new Vector2(0.92f, 0.52f), 26, TextAnchor.MiddleCenter, Palette.Accent);
+            _briefingGoal = UiFactory.Label(card.transform, "Goal", new Vector2(0.08f, 0.35f), new Vector2(0.92f, 0.42f), 24, TextAnchor.MiddleCenter, Palette.TextMuted);
+            _briefingLoadoutCaption = UiFactory.Label(card.transform, "LoadoutCaption", new Vector2(0.08f, 0.28f), new Vector2(0.92f, 0.35f), 22, TextAnchor.MiddleCenter, Palette.TextMuted, FontStyle.Normal, Loc.Get("stage.loadout"));
+
+            _briefingPips = new Image[MaxLoadoutPips];
+            _briefingPipButtons = new Button[MaxLoadoutPips];
+            for (var i = 0; i < MaxLoadoutPips; i++)
+            {
+                var slot = i;
+                var pip = UiFactory.Panel(card.transform, "Pip" + i, new Vector2(0.5f, 0.18f), new Vector2(0.5f, 0.28f), Palette.Projectile, 4f);
+                pip.sprite = Shapes.Circle;
+                pip.type = Image.Type.Simple;
+                pip.preserveAspect = true;
+                var button = pip.gameObject.AddComponent<Button>();
+                button.targetGraphic = pip;
+                button.onClick.AddListener(() => OnBriefingPipClicked(slot));
+                _briefingPips[i] = pip;
+                _briefingPipButtons[i] = button;
+            }
+
+            _briefingStartLabel = UiFactory.Pill(card.transform, Loc.Get("stage.start"), new Vector2(0.1f, 0.08f), new Vector2(0.9f, 0.17f), Palette.AccentCool, Palette.TextOnAccent, 34, StartFromBriefing).GetComponentInChildren<Text>();
+            _briefingBackLabel = UiFactory.Pill(card.transform, Loc.Get("common.back"), new Vector2(0.2f, 0.01f), new Vector2(0.8f, 0.07f), Palette.HudFill, Palette.TextPrimary, 26, HideBriefing).GetComponentInChildren<Text>();
 
             root.SetActive(false);
             return root;
@@ -791,6 +1108,103 @@ namespace HyperPuzzle2D.Core
         }
 
         /// <summary>
+        /// Tiny coloured grid of the stage's footprint. Reads as the structure's silhouette on the
+        /// stage list and briefing without spawning a second world copy.
+        /// </summary>
+        static void FillSilhouette(Transform root, LevelLayout layout)
+        {
+            for (var i = root.childCount - 1; i >= 0; i--)
+            {
+                Object.Destroy(root.GetChild(i).gameObject);
+            }
+
+            if (layout == null || layout.FootprintWidth <= 0 || layout.Height <= 0)
+            {
+                return;
+            }
+
+            var cols = layout.FootprintWidth;
+            var rows = layout.Height;
+            var cellW = 1f / cols;
+            var cellH = 1f / rows;
+            const float inset = 0.06f;
+
+            for (var row = 0; row < rows; row++)
+            {
+                for (var col = 0; col < cols; col++)
+                {
+                    var kind = layout.PieceAt(layout.FirstColumn + col, row);
+                    if (kind == PieceKind.None)
+                    {
+                        continue;
+                    }
+
+                    var go = UiFactory.NewUiObject("Cell", root);
+                    var image = go.AddComponent<Image>();
+                    image.sprite = Shapes.Solid;
+                    image.color = PieceTint(kind);
+                    image.raycastTarget = false;
+                    UiFactory.Anchor(
+                        image.rectTransform,
+                        new Vector2(col * cellW + inset * cellW, row * cellH + inset * cellH),
+                        new Vector2((col + 1) * cellW - inset * cellW, (row + 1) * cellH - inset * cellH));
+                }
+            }
+        }
+
+        static Color PieceTint(PieceKind kind)
+        {
+            switch (kind)
+            {
+                case PieceKind.Brittle: return Palette.Brittle;
+                case PieceKind.Explosive: return Palette.Explosive;
+                case PieceKind.Heavy: return Palette.Heavy;
+                case PieceKind.Ball: return Palette.Can;
+                case PieceKind.Pillar: return Palette.Pillar;
+                case PieceKind.Beam: return Palette.Beam;
+                default: return Palette.Blocks[0];
+            }
+        }
+
+        static void LayoutLoadoutPips(Image[] pips, string loadout, int highlight = -1)
+        {
+            if (pips == null)
+            {
+                return;
+            }
+
+            var count = loadout != null ? Mathf.Min(loadout.Length, pips.Length) : 0;
+            var cell = count > 0 ? 1f / count : 1f;
+            const float gap = 0.08f;
+
+            for (var i = 0; i < pips.Length; i++)
+            {
+                var pip = pips[i];
+                if (pip == null)
+                {
+                    continue;
+                }
+
+                var inUse = i < count;
+                pip.gameObject.SetActive(inUse);
+                if (!inUse)
+                {
+                    continue;
+                }
+
+                UiFactory.Anchor(
+                    pip.rectTransform,
+                    new Vector2(cell * i + gap * cell, 0f),
+                    new Vector2(cell * (i + 1) - gap * cell, 1f));
+
+                var tint = ProjectileTint(LevelLayout.ShotAt(loadout, i));
+                pip.color = i == highlight
+                    ? Color.Lerp(tint, Color.white, 0.45f)
+                    : tint;
+            }
+        }
+
+        /// <summary>
         /// Three evenly spaced rating stars under a container, so a caller can hide the whole row
         /// in modes that are not rated. Tinting happens later, in <see cref="RefreshStars"/>.
         /// </summary>
@@ -830,7 +1244,7 @@ namespace HyperPuzzle2D.Core
             {
                 if (icons[i] != null)
                 {
-                    icons[i].color = i < stars ? Palette.GroundEdge : UnearnedStarTint;
+                    icons[i].color = i < stars ? Palette.StarGold : UnearnedStarTint;
                 }
             }
         }
@@ -861,7 +1275,11 @@ namespace HyperPuzzle2D.Core
             _layout = runMode == RunMode.Stage
                 ? LevelLibrary.Get(_stageIndex)
                 : LevelLibrary.Pick(_seed);
-            var originX = ShelfCenterX - (_layout.Width - 1) * BlockPitch * 0.5f;
+
+            // Centre on the columns the layout actually fills, not on the grid it was written in,
+            // so a narrow stack sits on a narrow pad instead of off to one side of a wide one.
+            LayoutShelf(Mathf.Max(ShelfMinWidth, _layout.FootprintWidth * BlockPitch + ShelfMargin));
+            var originX = ShelfCenterX - _layout.CenterColumn * BlockPitch;
 
             for (var row = 0; row < _layout.Height; row++)
             {
@@ -886,7 +1304,7 @@ namespace HyperPuzzle2D.Core
                     }
 
                     var x = originX + (column + (span - 1) * 0.5f) * BlockPitch;
-                    SpawnPiece(kind, x, ShelfTopY + row * BlockPitch, row, span);
+                    SpawnPiece(kind, x, ShelfTopY + row * BlockPitch, row, column, span);
                     column += span;
                 }
             }
@@ -899,11 +1317,11 @@ namespace HyperPuzzle2D.Core
         }
 
         /// <summary>Builds one piece. Pieces are bottom-aligned in their cell so courses stack cleanly.</summary>
-        void SpawnPiece(PieceKind kind, float x, float cellBottom, int row, int span)
+        void SpawnPiece(PieceKind kind, float x, float cellBottom, int row, int column, int span)
         {
             if (kind == PieceKind.Ball)
             {
-                const float radius = 0.34f;
+                const float radius = BallRadius;
                 var ball = CreateCircleRenderer("Ball", new Vector3(x, cellBottom + radius, 0f), radius, Palette.Can, SortingOrders.Block);
                 ball.transform.SetParent(_worldRoot);
                 AddCircleShadow(ball.transform);
@@ -962,7 +1380,7 @@ namespace HyperPuzzle2D.Core
                     break;
             }
 
-            var piece = CreateSlicedRenderer(kind.ToString(), new Vector3(x, cellBottom + size.y * 0.5f, 0f), size, color, SortingOrders.Block);
+            var piece = CreateSlicedRenderer(kind.ToString(), new Vector3(x, cellBottom + size.y * 0.5f, 0f), size, Course(color, row, column), SortingOrders.Block);
             piece.transform.SetParent(_worldRoot);
             AddBoxShadow(piece.transform, size);
             var collider = piece.gameObject.AddComponent<BoxCollider2D>();
@@ -976,12 +1394,23 @@ namespace HyperPuzzle2D.Core
 
             if (kind == PieceKind.Explosive)
             {
-                var core = CreateCircleRenderer("Core", Vector3.zero, 0.18f, Palette.ExplosionCore, SortingOrders.Block + 1);
+                var core = CreateCircleRenderer("Core", Vector3.zero, 0.2f, Palette.ExplosionCore, SortingOrders.Block + 1);
                 core.transform.SetParent(piece.transform, false);
                 core.transform.localPosition = Vector3.zero;
             }
 
             RegisterTarget(piece.gameObject, kind);
+        }
+
+        /// <summary>
+        /// Alternates brightness like bricks in a course. Pieces of one kind share a tint, and at
+        /// the current block size neighbours in a row otherwise fuse into a single bar, which hides
+        /// exactly the seams the player is aiming at.
+        /// </summary>
+        static Color Course(Color color, int row, int column)
+        {
+            var shade = ((row + column) & 1) == 0 ? 1.06f : 0.94f;
+            return new Color(color.r * shade, color.g * shade, color.b * shade, color.a);
         }
 
         void RegisterTarget(GameObject target, PieceKind kind)
@@ -990,8 +1419,8 @@ namespace HyperPuzzle2D.Core
             destructible.Configure(
                 MaterialFor(kind),
                 ShelfTopY,
-                ShelfCenterX - 2.2f,
-                ShelfCenterX + 2.2f,
+                ShelfCenterX - _shelfHalfWidth,
+                ShelfCenterX + _shelfHalfWidth,
                 ClearY);
             destructible.Damaged += OnBlockDamaged;
             destructible.Broken += OnBlockBroken;
@@ -1079,15 +1508,15 @@ namespace HyperPuzzle2D.Core
             RefreshHud();
         }
 
-        /// <summary>The shot the cannon is about to fire, from this stage's loadout.</summary>
+        /// <summary>The shot the cannon is about to fire, from this run's (possibly reordered) loadout.</summary>
         ProjectileKind CurrentShotKind()
         {
-            if (_layout == null)
+            if (string.IsNullOrEmpty(_runLoadout))
             {
                 return ProjectileKind.Ball;
             }
 
-            return _layout.ShotAt(_layout.Ammo - _loop.Ammo);
+            return LevelLayout.ShotAt(_runLoadout, _runLoadout.Length - _loop.Ammo);
         }
 
         Projectile SpawnProjectile(ProjectileKind kind, Vector3 position, Vector2 velocity)
@@ -1147,7 +1576,7 @@ namespace HyperPuzzle2D.Core
 
         static float ProjectileRadius(ProjectileKind kind)
         {
-            return kind == ProjectileKind.Fragment ? 0.13f : 0.22f;
+            return kind == ProjectileKind.Fragment ? 0.15f : Projectile.Radius;
         }
 
         static float ProjectileMass(ProjectileKind kind)
@@ -1409,12 +1838,14 @@ namespace HyperPuzzle2D.Core
 
         void OnStateChanged(GameState state)
         {
-            _cannon.CanFire = state == GameState.Playing && !_shotInFlight;
+            _cannon.CanFire = state == GameState.Playing && !_shotInFlight && !_paused;
             if (state == GameState.Failed)
             {
                 Sfx.Instance?.Failed();
                 Haptics.Light();
+                SetPaused(false);
                 ShowResult(_failScoreText, _failBestText);
+                RefreshFailGaps();
                 _failPanel.SetActive(true);
                 _ftueHint?.Hide();
             }
@@ -1425,12 +1856,13 @@ namespace HyperPuzzle2D.Core
                 if (runMode == RunMode.Stage)
                 {
                     Progress.UnlockAfterClear(_stageIndex, LevelLibrary.Count);
-                    stars = _layout != null ? _layout.StarsFor(_loop.Score) : 0;
+                    stars = _layout != null ? _layout.StarsFor(_loop.Score, _loop.TargetsRemaining <= 0) : 0;
                     newBest = Progress.SubmitStage(_stageIndex, _loop.Score, stars);
                 }
 
                 Sfx.Instance?.Cleared();
                 Haptics.Light();
+                SetPaused(false);
                 ShowResult(_clearScoreText, _clearBestText, newBest);
                 RefreshStars(_clearStarIcons, stars);
                 if (_clearStarRow != null)
@@ -1439,6 +1871,7 @@ namespace HyperPuzzle2D.Core
                     _clearStarRow.SetActive(runMode == RunMode.Stage);
                 }
 
+                RefreshClearHint(stars);
                 RefreshClearActions();
                 _clearPanel.SetActive(true);
                 _ftueHint?.Hide();
@@ -1485,6 +1918,93 @@ namespace HyperPuzzle2D.Core
         }
 
         /// <summary>
+        /// On a failed stage, the useful number is how far the goal still was — a stored best does
+        /// not tell the player what to aim for next attempt. Endless/daily keep the best line.
+        /// </summary>
+        void RefreshFailGaps()
+        {
+            if (_failGapText == null)
+            {
+                return;
+            }
+
+            if (runMode != RunMode.Stage || _layout == null)
+            {
+                _failGapText.gameObject.SetActive(false);
+                return;
+            }
+
+            if (_layout.RequiresClearAll)
+            {
+                if (_failBestText != null)
+                {
+                    _failBestText.text = Loc.Format("fail.leftStanding", _loop.TargetsRemaining);
+                    _failBestText.color = Palette.Accent;
+                }
+
+                _failGapText.gameObject.SetActive(false);
+                return;
+            }
+
+            var score = _loop.Score;
+            var shortOfGoal = Mathf.Max(0, _layout.TargetScore - score);
+            var shortOfTwo = Mathf.Max(0, _layout.TwoStarScore - score);
+
+            if (_failBestText != null)
+            {
+                _failBestText.text = Loc.Format("fail.shortGoal", shortOfGoal);
+                _failBestText.color = Palette.Accent;
+            }
+
+            _failGapText.gameObject.SetActive(true);
+            _failGapText.text = Loc.Format("fail.shortStars", shortOfTwo, Loc.Get("star.two"));
+            _failGapText.color = Palette.TextMuted;
+        }
+
+        /// <summary>
+        /// After a clear, the next star bar is the reason to replay. Without it the sheet only
+        /// pushes "next stage", and one-star clears never get chased.
+        /// </summary>
+        void RefreshClearHint(int stars)
+        {
+            if (_clearHintText == null)
+            {
+                return;
+            }
+
+            if (runMode != RunMode.Stage || _layout == null)
+            {
+                _clearHintText.gameObject.SetActive(false);
+                if (_clearReplayButton != null) _clearReplayButton.SetActive(false);
+                return;
+            }
+
+            _clearHintText.gameObject.SetActive(true);
+            if (_clearReplayButton != null) _clearReplayButton.SetActive(true);
+
+            if (stars >= 3 || _layout.RequiresClearAll)
+            {
+                _clearHintText.text = Loc.Get("clear.perfect");
+                _clearHintText.color = Palette.GroundEdge;
+                if (_clearReplayLabel != null) _clearReplayLabel.text = Loc.Get("clear.replay");
+                return;
+            }
+
+            var nextBar = stars >= 2 ? _layout.ThreeStarScore : _layout.TwoStarScore;
+            var nextMark = stars >= 2 ? Loc.Get("star.three") : Loc.Get("star.two");
+            var need = Mathf.Max(0, nextBar - _loop.Score);
+            _clearHintText.text = Loc.Format("clear.moreFor", need, nextMark);
+            _clearHintText.color = Palette.Accent;
+            if (_clearReplayLabel != null) _clearReplayLabel.text = Loc.Get("clear.replayStars");
+        }
+
+        void OnClearReplayClicked()
+        {
+            Sfx.Instance?.Ui();
+            RetryCurrentRun();
+        }
+
+        /// <summary>
         /// Persists the finished run to the right store (per-seed for Daily, all-time for Endless)
         /// and reports the resulting record plus whether this run set it.
         /// </summary>
@@ -1513,13 +2033,22 @@ namespace HyperPuzzle2D.Core
 
             if (_scoreCaption != null) _scoreCaption.text = Loc.Get("hud.scoreCaption");
             if (_ammoCaption != null) _ammoCaption.text = Loc.Get("hud.ammoCaption");
-            if (_hudHomeLabel != null) _hudHomeLabel.text = Loc.Get("common.menu");
+            if (_hudHomeLabel != null) _hudHomeLabel.text = Loc.Get("hud.pause");
             if (_failTitle != null) _failTitle.text = Loc.Get("fail.title");
             if (_clearTitle != null) _clearTitle.text = Loc.Get("clear.title");
             if (_failReviveLabel != null) _failReviveLabel.text = Loc.Get("fail.revive");
             if (_failRetryLabel != null) _failRetryLabel.text = Loc.Get("fail.retry");
             if (_failMenuLabel != null) _failMenuLabel.text = Loc.Get("common.menu");
             if (_clearMenuLabel != null) _clearMenuLabel.text = Loc.Get("common.menu");
+            if (_clearReplayLabel != null)
+            {
+                _clearReplayLabel.text = Loc.Get("clear.replayStars");
+            }
+
+            if (_pauseTitle != null) _pauseTitle.text = Loc.Get("pause.title");
+            if (_pauseResumeLabel != null) _pauseResumeLabel.text = Loc.Get("pause.resume");
+            if (_pauseRetryLabel != null) _pauseRetryLabel.text = Loc.Get("pause.retry");
+            if (_pauseHomeLabel != null) _pauseHomeLabel.text = Loc.Get("common.menu");
             if (_menuTitle != null) _menuTitle.text = Loc.Get("menu.title");
             if (_menuTagline != null) _menuTagline.text = Loc.Get("menu.tagline");
             if (_menuStagesLabel != null) _menuStagesLabel.text = Loc.Get("menu.stages");
@@ -1542,6 +2071,11 @@ namespace HyperPuzzle2D.Core
             RefreshStageSelectLabels();
             RefreshClearActions();
             RefreshHud();
+
+            if (_briefingPanel != null && _briefingPanel.activeSelf)
+            {
+                ShowBriefing(_briefingStage);
+            }
         }
 
         void ShowSplash()
@@ -1598,11 +2132,14 @@ namespace HyperPuzzle2D.Core
 
         void ShowHome()
         {
+            SetPaused(false);
             SetScreen(AppScreen.Home);
             _cannon.CanFire = false;
             _shotInFlight = false;
             if (_failPanel != null) _failPanel.SetActive(false);
             if (_clearPanel != null) _clearPanel.SetActive(false);
+            if (_pausePanel != null) _pausePanel.SetActive(false);
+            if (_briefingPanel != null) _briefingPanel.SetActive(false);
             _ftueHint?.Hide();
             ClearBoard();
             RefreshHomeStats();
@@ -1610,14 +2147,69 @@ namespace HyperPuzzle2D.Core
 
         void ShowStageSelect()
         {
+            SetPaused(false);
             SetScreen(AppScreen.StageSelect);
             _cannon.CanFire = false;
             _shotInFlight = false;
             if (_failPanel != null) _failPanel.SetActive(false);
             if (_clearPanel != null) _clearPanel.SetActive(false);
+            if (_pausePanel != null) _pausePanel.SetActive(false);
+            if (_briefingPanel != null) _briefingPanel.SetActive(false);
             _ftueHint?.Hide();
             ClearBoard();
             RefreshStageSelectLabels();
+        }
+
+        void ShowPause()
+        {
+            if (_screen != AppScreen.Play)
+            {
+                return;
+            }
+
+            if (_loop.State != GameState.Playing && _loop.State != GameState.Resolve)
+            {
+                return;
+            }
+
+            // Fail/clear sheets own the screen; pause must not stack under them.
+            if ((_failPanel != null && _failPanel.activeSelf) || (_clearPanel != null && _clearPanel.activeSelf))
+            {
+                return;
+            }
+
+            Sfx.Instance?.Ui();
+            SetPaused(true);
+            if (_pausePanel != null)
+            {
+                _pausePanel.SetActive(true);
+            }
+        }
+
+        void ResumePause()
+        {
+            Sfx.Instance?.Ui();
+            SetPaused(false);
+            if (_pausePanel != null)
+            {
+                _pausePanel.SetActive(false);
+            }
+
+            // ArmAfterPointerRelease forces CanFire on; only do that when a fresh shot is legal.
+            if (!_shotInFlight && _loop.State == GameState.Playing)
+            {
+                _cannon.ArmAfterPointerRelease();
+            }
+        }
+
+        void SetPaused(bool paused)
+        {
+            _paused = paused;
+            Time.timeScale = paused ? 0f : 1f;
+            if (_cannon != null)
+            {
+                _cannon.CanFire = !paused && _loop.State == GameState.Playing && !_shotInFlight;
+            }
         }
 
         void ShowSettings()
@@ -1644,6 +2236,16 @@ namespace HyperPuzzle2D.Core
             if (_settingsPanel != null)
             {
                 _settingsPanel.SetActive(false);
+            }
+
+            if (_pausePanel != null && screen != AppScreen.Play)
+            {
+                _pausePanel.SetActive(false);
+            }
+
+            if (_briefingPanel != null && screen != AppScreen.StageSelect)
+            {
+                _briefingPanel.SetActive(false);
             }
 
             if (_splashPanel != null) _splashPanel.SetActive(screen == AppScreen.Splash);
@@ -1715,6 +2317,11 @@ namespace HyperPuzzle2D.Core
                     RefreshStars(_stageStarIcons[i], unlocked ? Progress.StageStars(i) : 0);
                 }
 
+                if (i < _stageLoadoutPips.Count)
+                {
+                    LayoutLoadoutPips(_stageLoadoutPips[i], unlocked ? layout.Loadout : null);
+                }
+
                 _stageButtons[i].interactable = unlocked;
                 var image = _stageButtons[i].targetGraphic as Image;
                 if (image != null)
@@ -1732,12 +2339,141 @@ namespace HyperPuzzle2D.Core
             }
 
             Sfx.Instance?.Ui();
-            BeginRun(RunMode.Stage, index);
+            ShowBriefing(index);
+        }
+
+        void ShowBriefing(int index)
+        {
+            _briefingStage = index;
+            var layout = LevelLibrary.Get(index);
+            _briefingLoadout = layout.Loadout;
+            _briefingPick = -1;
+
+            if (_briefingTitle != null)
+            {
+                _briefingTitle.text = Loc.Format("stage.item", index + 1, Loc.LevelName(layout.Name));
+            }
+
+            if (_briefingHint != null)
+            {
+                _briefingHint.text = Loc.Get(layout.HintKey);
+            }
+
+            if (_briefingGoal != null)
+            {
+                _briefingGoal.text = layout.RequiresClearAll
+                    ? Loc.Get("stage.goal.clear")
+                    : Loc.Format("stage.goal.score", layout.TargetScore);
+            }
+
+            if (_briefingLoadoutCaption != null)
+            {
+                _briefingLoadoutCaption.text = Loc.Get("stage.loadout");
+            }
+
+            if (_briefingStartLabel != null) _briefingStartLabel.text = Loc.Get("stage.start");
+            if (_briefingBackLabel != null) _briefingBackLabel.text = Loc.Get("common.back");
+
+            FillSilhouette(_briefingSilhouetteRoot, layout);
+            RefreshBriefingPips();
+
+            if (_briefingPanel != null)
+            {
+                // Built before the stage list, so without this it would open underneath the grid
+                // and look like the tap did nothing.
+                _briefingPanel.transform.SetAsLastSibling();
+                _briefingPanel.SetActive(true);
+            }
+        }
+
+        void HideBriefing()
+        {
+            Sfx.Instance?.Ui();
+            if (_briefingPanel != null)
+            {
+                _briefingPanel.SetActive(false);
+            }
+
+            _briefingPick = -1;
+        }
+
+        void StartFromBriefing()
+        {
+            Sfx.Instance?.Ui();
+            var loadout = _briefingLoadout;
+            if (_briefingPanel != null)
+            {
+                _briefingPanel.SetActive(false);
+            }
+
+            BeginRun(RunMode.Stage, _briefingStage, loadout);
+        }
+
+        void OnBriefingPipClicked(int index)
+        {
+            if (string.IsNullOrEmpty(_briefingLoadout) || index < 0 || index >= _briefingLoadout.Length)
+            {
+                return;
+            }
+
+            Sfx.Instance?.Ui();
+            if (_briefingPick < 0 || _briefingPick == index)
+            {
+                _briefingPick = _briefingPick == index ? -1 : index;
+                RefreshBriefingPips();
+                return;
+            }
+
+            _briefingLoadout = SwapChars(_briefingLoadout, _briefingPick, index);
+            _briefingPick = -1;
+            RefreshBriefingPips();
+        }
+
+        void RefreshBriefingPips()
+        {
+            LayoutLoadoutPips(_briefingPips, _briefingLoadout, _briefingPick);
+        }
+
+        /// <summary>
+        /// Swaps the next two unfired shots. Mid-run loadout edits are limited to the upcoming
+        /// pair so the player cannot reshuffle spent rounds or invent ammo.
+        /// </summary>
+        void SwapNextTwoShots()
+        {
+            if (_screen != AppScreen.Play || _paused || _shotInFlight || _loop.State != GameState.Playing)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_runLoadout) || _loop.Ammo < 2)
+            {
+                return;
+            }
+
+            var next = _runLoadout.Length - _loop.Ammo;
+            _runLoadout = SwapChars(_runLoadout, next, next + 1);
+            Sfx.Instance?.Ui();
+            RefreshAmmoPips();
+            _cannon.ArmAfterPointerRelease();
+        }
+
+        static string SwapChars(string source, int a, int b)
+        {
+            if (string.IsNullOrEmpty(source) || a < 0 || b < 0 || a >= source.Length || b >= source.Length || a == b)
+            {
+                return source;
+            }
+
+            var chars = source.ToCharArray();
+            (chars[a], chars[b]) = (chars[b], chars[a]);
+            return new string(chars);
         }
 
         void RetryCurrentRun()
         {
-            BeginRun(runMode, _stageIndex);
+            // Retries keep the player's last briefing order so a tuned queue is not thrown away
+            // after a near miss.
+            BeginRun(runMode, _stageIndex, runMode == RunMode.Stage ? _runLoadout : null);
         }
 
         void OnClearNextClicked()
@@ -1786,6 +2522,7 @@ namespace HyperPuzzle2D.Core
                         : Loc.Get("clear.title");
                 }
 
+                // Replay stays even on the last stage: that is where "chase three stars" matters most.
                 SetSecondaryClearVisible(!isLast);
                 return;
             }
@@ -1795,12 +2532,14 @@ namespace HyperPuzzle2D.Core
                 _clearNextLabel.text = Loc.Get("clear.home");
                 if (_clearTitle != null) _clearTitle.text = Loc.Get("clear.title");
                 SetSecondaryClearVisible(false);
+                if (_clearReplayButton != null) _clearReplayButton.SetActive(false);
                 return;
             }
 
             _clearNextLabel.text = Loc.Get("menu.endless");
             if (_clearTitle != null) _clearTitle.text = Loc.Get("clear.title");
             SetSecondaryClearVisible(true);
+            if (_clearReplayButton != null) _clearReplayButton.SetActive(false);
         }
 
         /// <summary>
@@ -1877,11 +2616,25 @@ namespace HyperPuzzle2D.Core
 
         void RefreshHud()
         {
+            if (_scoreCaption != null)
+            {
+                _scoreCaption.text = _loop.RequiresClearAll
+                    ? Loc.Get("hud.clearCaption")
+                    : Loc.Get("hud.scoreCaption");
+            }
+
             if (_scoreText != null)
             {
-                _scoreText.text = _loop.TargetScore > 0
-                    ? Loc.Format("hud.scoreGoal", _loop.Score, _loop.TargetScore)
-                    : _loop.Score.ToString();
+                if (_loop.RequiresClearAll)
+                {
+                    _scoreText.text = Loc.Format("hud.clearGoal", _loop.TargetsRemaining);
+                }
+                else
+                {
+                    _scoreText.text = _loop.TargetScore > 0
+                        ? Loc.Format("hud.scoreGoal", _loop.Score, _loop.TargetScore)
+                        : _loop.Score.ToString();
+                }
             }
 
             if (_ammoText != null)
@@ -1893,9 +2646,20 @@ namespace HyperPuzzle2D.Core
 
             if (_goalFill != null)
             {
-                var progress = _loop.TargetScore > 0
-                    ? Mathf.Clamp01(_loop.Score / (float)_loop.TargetScore)
-                    : 0f;
+                float progress;
+                if (_loop.RequiresClearAll)
+                {
+                    progress = _targetTotal > 0
+                        ? Mathf.Clamp01(1f - _loop.TargetsRemaining / (float)_targetTotal)
+                        : 0f;
+                }
+                else
+                {
+                    progress = _loop.TargetScore > 0
+                        ? Mathf.Clamp01(_loop.Score / (float)_loop.TargetScore)
+                        : 0f;
+                }
+
                 _goalFill.rectTransform.anchorMax = new Vector2(progress, 1f);
                 _goalFill.color = _loop.GoalMet ? Palette.AccentCool : Palette.Accent;
             }
@@ -1919,6 +2683,12 @@ namespace HyperPuzzle2D.Core
                     _targetsText.text = Loc.Format("hud.targets", Loc.LevelName(_layout.Name), _loop.TargetsRemaining);
                 }
             }
+
+            if (_swapHint != null)
+            {
+                var canSwap = _screen == AppScreen.Play && _loop.State == GameState.Playing && !_shotInFlight && _loop.Ammo >= 2;
+                _swapHint.text = canSwap ? Loc.Get("stage.swapNext") : string.Empty;
+            }
         }
 
         void RefreshAmmoPips()
@@ -1928,8 +2698,9 @@ namespace HyperPuzzle2D.Core
                 return;
             }
 
-            var count = _layout != null ? Mathf.Min(_layout.Ammo, _ammoPips.Length) : 0;
-            var fired = _layout != null ? _layout.Ammo - _loop.Ammo : 0;
+            var loadout = _runLoadout;
+            var count = !string.IsNullOrEmpty(loadout) ? Mathf.Min(loadout.Length, _ammoPips.Length) : 0;
+            var fired = !string.IsNullOrEmpty(loadout) ? loadout.Length - _loop.Ammo : 0;
             var cell = count > 0 ? 1f / count : 1f;
 
             for (var i = 0; i < _ammoPips.Length; i++)
@@ -1947,14 +2718,13 @@ namespace HyperPuzzle2D.Core
                     continue;
                 }
 
-                // Re-spread every refresh so a three and a four shot stage both stay centred.
                 const float gap = 0.02f;
                 UiFactory.Anchor(
                     pip.rectTransform,
                     new Vector2(cell * i + gap, 0f),
                     new Vector2(cell * (i + 1) - gap, 1f));
 
-                var tint = ProjectileTint(_layout.ShotAt(i));
+                var tint = ProjectileTint(LevelLayout.ShotAt(loadout, i));
                 pip.color = i < fired ? new Color(tint.r, tint.g, tint.b, 0.22f) : tint;
             }
         }
@@ -2001,7 +2771,7 @@ namespace HyperPuzzle2D.Core
         /// Hazard tape along a platform lip. Tiled so the diagonal stripes stay square regardless
         /// of how long the trim is, which is what sells the demolition-site read.
         /// </summary>
-        void CreateHazardTrim(string name, Vector3 position, Vector2 size)
+        SpriteRenderer CreateHazardTrim(string name, Vector3 position, Vector2 size)
         {
             var go = new GameObject(name);
             go.transform.SetParent(_worldRoot);
@@ -2013,6 +2783,7 @@ namespace HyperPuzzle2D.Core
             renderer.tileMode = SpriteTileMode.Continuous;
             renderer.size = size;
             renderer.sortingOrder = SortingOrders.Structure + 1;
+            return renderer;
         }
 
         static SpriteRenderer CreateSlicedRenderer(string name, Vector3 position, Vector2 size, Color color, int sortingOrder)

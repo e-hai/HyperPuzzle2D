@@ -11,12 +11,9 @@ namespace HyperPuzzle2D.Board
     /// '|' pillar, '=' beam, '.' empty.
     /// Rows are written top-first. Every non-beam cell needs something directly beneath it,
     /// because each cell is its own rigid body; only beams span a gap.
-    /// Target scores sit near what a single decent shot already pays, so progress never stalls
-    /// on a board the player has visibly wrecked. The two star bars above it carry the difficulty
-    /// instead: passing stays easy, and only a chain that takes most of the board at once pays
-    /// three stars. Those two bars come from tools/star_bars.py, which derives them from the
-    /// board's own one-shot ceiling: chain scoring grows quadratically with piece count, so bars
-    /// picked by eye are wildly inconsistent between a 8 piece board and a 19 piece one.
+    /// Target scores sit near what a single decent shot already pays on the teaching stages
+    /// (1–3). From TABLE onward the board must be wiped: clear-all is the grade, and wiping it
+    /// pays three stars. The two star bars on score-goal stages come from tools/star_bars.py.
     /// Loadout glyphs: 'B' ball, 'C' cluster, 'D' demolition charge. The first two stages are
     /// plain balls so aiming is learned on its own, then one new shot type arrives at a time on a
     /// board that rewards it.
@@ -49,29 +46,26 @@ namespace HyperPuzzle2D.Board
                 ".!.!.",
                 ".#.#."),
 
-            // Wide brittle base with the core one row up: a low shot sweeps the whole footing out,
-            // and splitting the cluster early covers the base end to end.
+            // Wide brittle base with the core one row up: a low shot sweeps the whole footing out.
+            // Clear-all from here on: the teaching score goal has done its job.
             new LevelLayout(
-                "PYRAMID", "CBB", 150, 490, 870,
+                "PYRAMID", "CBB", 0, 490, 870,
                 "..O..",
                 ".G!G.",
                 "GGGGG"),
 
             // Everything rides one leg, and that leg is the core: the classic one-shot topple.
-            // The brittle plinth widens the miss window, so a low shot still shatters into the leg
-            // instead of sailing under a board that is only one cell wide where it matters.
             new LevelLayout(
-                "TABLE", "BDB", 120, 400, 730,
+                "TABLE", "BDB", 0, 400, 730,
                 ".OOO.",
                 ".===.",
                 "..!..",
                 ".GGG."),
 
-            // Brittle shell around a buried core. Any honest hit cracks through and sets it off,
-            // and the heavy on top is a trophy to drop rather than armour to grind down. The
-            // charge leads because planting it on the shell reaches the core without cracking in.
+            // Brittle shell around a buried core. The charge leads because planting it on the
+            // shell reaches the core without cracking in.
             new LevelLayout(
-                "VAULT", "DBC", 180, 860, 1550,
+                "VAULT", "DBC", 0, 860, 1550,
                 ".OXO.",
                 ".GGG.",
                 ".G!G.",
@@ -79,17 +73,16 @@ namespace HyperPuzzle2D.Board
 
             // Two decks on explosive feet: taking either foot cascades both floors.
             new LevelLayout(
-                "SHELVES", "CDB", 150, 530, 950,
+                "SHELVES", "CDB", 0, 530, 950,
                 ".OOO.",
                 ".===.",
                 ".|.|.",
                 ".===.",
                 ".!.!."),
 
-            // Widest board and the finale: twin cores inside a brittle wall, so a centred shot
-            // can take the entire face down at once.
+            // Widest board and the finale: twin cores inside a brittle wall.
             new LevelLayout(
-                "WALL", "DCBD", 220, 2000, 3610,
+                "WALL", "DCBD", 0, 2000, 3610,
                 "OO.OO",
                 "GGGGG",
                 "G!G!G",

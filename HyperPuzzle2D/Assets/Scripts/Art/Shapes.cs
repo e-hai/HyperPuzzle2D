@@ -16,17 +16,28 @@ namespace HyperPuzzle2D.Art
         static Sprite _glow;
         static Sprite _hazard;
         static Sprite _star;
+        static Sprite _paperFiber;
 
         public static Sprite Solid => _solid != null ? _solid : _solid = BuildSolid();
 
         /// <summary>9-sliced panel. Use with <see cref="SpriteDrawMode.Sliced"/> or a sliced Image.</summary>
-        public static Sprite RoundedRect => _roundedRect != null ? _roundedRect : _roundedRect = BuildRoundedRect(22f, 26f);
+        public static Sprite RoundedRect => _roundedRect != null ? _roundedRect : _roundedRect = BuildRoundedRect(22f, 26f, 0.18f);
 
         /// <summary>
-        /// Playfield variant with tighter corners. Pieces are only 0.8 world units, so the panel
-        /// radius would eat most of the edge and every block would read as a pill.
+        /// Playfield variant with tighter corners. Pieces are under a world unit, so the panel
+        /// radius would eat most of the edge and every block would read as a pill. The ink line is
+        /// heavier here: world pieces overlap each other, and the outline is what keeps a stack of
+        /// same-family timber tones from merging into one silhouette.
         /// </summary>
-        public static Sprite BlockRect => _blockRect != null ? _blockRect : _blockRect = BuildRoundedRect(10f, 14f);
+        public static Sprite BlockRect => _blockRect != null ? _blockRect : _blockRect = BuildRoundedRect(10f, 14f, 0.32f);
+
+        /// <summary>
+        /// One tile of washi grain, white with the fibre carried in the alpha so it can be laid
+        /// over any backdrop and tinted by the renderer. Authored to wrap on both axes, so a
+        /// <see cref="SpriteDrawMode.Tiled"/> renderer keeps the grain at a constant size instead
+        /// of stretching it across the field.
+        /// </summary>
+        public static Sprite PaperFiber => _paperFiber != null ? _paperFiber : _paperFiber = BuildPaperFiber();
 
         public static Sprite Circle => _circle != null ? _circle : _circle = BuildCircle();
 
@@ -80,9 +91,13 @@ namespace HyperPuzzle2D.Art
             return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
         }
 
-        static Sprite BuildRoundedRect(float radius, float border)
+        static Sprite BuildRoundedRect(float radius, float border, float ink)
         {
             const int size = 128;
+
+            // Width of the darkened band just inside the silhouette. Kept well under the 9-slice
+            // border so the line survives slicing instead of being stretched across the middle.
+            const float inkWidth = 2.5f;
 
             var tex = NewTexture(size, size);
             var pixels = new Color[size * size];
@@ -96,8 +111,15 @@ namespace HyperPuzzle2D.Art
                     var distance = Mathf.Sqrt(dx * dx + dy * dy) - radius;
                     var alpha = Mathf.Clamp01(0.5f - distance);
 
-                    // Bake a top-lit ramp so flat-tinted blocks still read as volumes.
-                    var shade = Mathf.Lerp(0.74f, 1.14f, y / (float)(size - 1));
+                    // Bake a top-lit ramp so flat-tinted blocks still read as volumes. The range is
+                    // shallow on purpose: paper craft is lit flat, and the form is carried by the
+                    // ink line below rather than by a glossy gradient.
+                    var shade = Mathf.Lerp(0.86f, 1.08f, y / (float)(size - 1));
+
+                    // Ink line hugging the edge, the way a cut-out reads against its own shadow.
+                    var edge = Mathf.Clamp01((distance + inkWidth) / inkWidth);
+                    shade *= Mathf.Lerp(1f, 1f - ink, edge);
+
                     pixels[y * size + x] = new Color(shade, shade, shade, alpha);
                 }
             }
@@ -142,6 +164,81 @@ namespace HyperPuzzle2D.Art
             tex.SetPixels(pixels);
             tex.Apply();
             return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        }
+
+        static Sprite BuildPaperFiber()
+        {
+            const int size = 128;
+
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Repeat,
+            };
+
+            var pixels = new Color[size * size];
+            for (var y = 0; y < size; y++)
+            {
+                for (var x = 0; x < size; x++)
+                {
+                    // Cells are wider than they are tall so the grain draws out horizontally, the
+                    // way pulp fibres settle on a screen. Three octaves: long strands, short
+                    // strands, then a fine tooth over the top.
+                    var fibre = PeriodicNoise(x, y, 32, 8, size) * 0.5f +
+                                PeriodicNoise(x, y, 64, 16, size) * 0.3f +
+                                PeriodicNoise(x, y, 16, 4, size) * 0.2f;
+
+                    // Bias dark: only the denser half of the range becomes a visible strand, so the
+                    // sheet stays mostly clean instead of reading as uniform static.
+                    var strand = Mathf.Clamp01((fibre - 0.45f) / 0.55f);
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, strand * strand);
+                }
+            }
+
+            tex.SetPixels(pixels);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 128f);
+        }
+
+        /// <summary>
+        /// Value noise on a lattice that wraps at <paramref name="size"/>, which is what makes the
+        /// tile seamless. Separate cell sizes per axis let callers stretch the grain directionally.
+        /// Both cell sizes must divide <paramref name="size"/> evenly.
+        /// </summary>
+        static float PeriodicNoise(int x, int y, int cellX, int cellY, int size)
+        {
+            var columns = size / cellX;
+            var rows = size / cellY;
+
+            var fx = x / (float)cellX;
+            var fy = y / (float)cellY;
+            var x0 = Mathf.FloorToInt(fx);
+            var y0 = Mathf.FloorToInt(fy);
+            var tx = fx - x0;
+            var ty = fy - y0;
+
+            // Smoothstep, otherwise the lattice shows up as diamond creases.
+            tx = tx * tx * (3f - 2f * tx);
+            ty = ty * ty * (3f - 2f * ty);
+
+            var v00 = LatticeValue(x0, y0, columns, rows);
+            var v10 = LatticeValue(x0 + 1, y0, columns, rows);
+            var v01 = LatticeValue(x0, y0 + 1, columns, rows);
+            var v11 = LatticeValue(x0 + 1, y0 + 1, columns, rows);
+
+            return Mathf.Lerp(Mathf.Lerp(v00, v10, tx), Mathf.Lerp(v01, v11, tx), ty);
+        }
+
+        static float LatticeValue(int x, int y, int columns, int rows)
+        {
+            // Wrapping the lattice indices is the whole trick: the right edge samples the same
+            // corner values as the left, so the tile joins itself without a seam.
+            var hx = ((x % columns) + columns) % columns;
+            var hy = ((y % rows) + rows) % rows;
+
+            var h = hx * 374761393 + hy * 668265263;
+            h = (h ^ (h >> 13)) * 1274126177;
+            return ((h ^ (h >> 16)) & 0xFFFF) / 65535f;
         }
 
         static Sprite BuildHazard()

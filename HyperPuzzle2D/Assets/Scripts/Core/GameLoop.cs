@@ -60,7 +60,11 @@ namespace HyperPuzzle2D.Core
         /// <summary>Points that pass the stage. Zero means "clear every target instead".</summary>
         public int TargetScore { get; private set; }
 
-        public bool GoalMet => TargetScore > 0 && Score >= TargetScore;
+        public bool RequiresClearAll => TargetScore <= 0;
+
+        public bool GoalMet => RequiresClearAll
+            ? TargetsRemaining <= 0
+            : TargetScore > 0 && Score >= TargetScore;
         public bool ReviveUsed { get; private set; }
 
         public event Action<GameState> StateChanged;

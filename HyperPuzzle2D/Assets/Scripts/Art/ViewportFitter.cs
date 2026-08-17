@@ -11,6 +11,7 @@ namespace HyperPuzzle2D.Art
     {
         Camera _camera;
         Transform _backdrop;
+        SpriteRenderer _grain;
         float _halfWidth;
         float _minOrthoSize;
         float _lastAspect = -1f;
@@ -30,12 +31,18 @@ namespace HyperPuzzle2D.Art
             return Mathf.Max(minOrthoSize, halfWidth / safeAspect);
         }
 
-        public void Configure(float halfWidth, float minOrthoSize, Transform backdrop)
+        /// <summary>
+        /// <paramref name="grain"/> is the tiled paper overlay. It is driven through its draw-mode
+        /// size rather than through scale, because scaling a tiled renderer stretches the tile with
+        /// it and the grain would grow along with the viewport instead of staying sheet-sized.
+        /// </summary>
+        public void Configure(float halfWidth, float minOrthoSize, Transform backdrop, SpriteRenderer grain = null)
         {
             _camera = GetComponent<Camera>();
             _halfWidth = halfWidth;
             _minOrthoSize = minOrthoSize;
             _backdrop = backdrop;
+            _grain = grain;
             Fit();
         }
 
@@ -58,6 +65,11 @@ namespace HyperPuzzle2D.Art
             if (_backdrop != null)
             {
                 _backdrop.localScale = new Vector3(viewHeight * aspect, viewHeight, 1f);
+            }
+
+            if (_grain != null)
+            {
+                _grain.size = new Vector2(viewHeight * aspect, viewHeight);
             }
         }
     }

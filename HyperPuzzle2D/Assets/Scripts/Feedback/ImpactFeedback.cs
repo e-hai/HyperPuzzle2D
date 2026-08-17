@@ -73,11 +73,19 @@ namespace HyperPuzzle2D.Feedback
 
         IEnumerator HitStop(float seconds)
         {
+            // Skip while paused: freezing at 0.08 and restoring would fight the pause panel.
+            if (Time.timeScale <= 0.001f)
+            {
+                yield break;
+            }
+
             _hitStopRunning = true;
-            var previousScale = Time.timeScale;
             Time.timeScale = 0.08f;
             yield return new WaitForSecondsRealtime(seconds);
-            Time.timeScale = previousScale;
+            // Honour a pause that opened during the freeze instead of snapping back to 1.
+            Time.timeScale = Core.GameDirector.Instance != null && Core.GameDirector.Instance.IsPaused
+                ? 0f
+                : 1f;
             _hitStopRunning = false;
         }
 
@@ -85,7 +93,9 @@ namespace HyperPuzzle2D.Feedback
         {
             if (_hitStopRunning)
             {
-                Time.timeScale = 1f;
+                Time.timeScale = Core.GameDirector.Instance != null && Core.GameDirector.Instance.IsPaused
+                    ? 0f
+                    : 1f;
                 _hitStopRunning = false;
             }
         }

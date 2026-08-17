@@ -28,8 +28,11 @@ namespace HyperPuzzle2D.Board
         /// <summary>Shared with the cannon's trajectory preview so the dots match the real arc.</summary>
         public const float GravityScale = 1.2f;
 
+        /// <summary>Collision radius of a normal shot. The aim preview sweeps with the same value.</summary>
+        public const float Radius = 0.25f;
+
         /// <summary>Below the bottom of the tallest phone viewport, so shots leave view before despawning.</summary>
-        const float OutOfPlayY = -12f;
+        const float OutOfPlayY = -9.5f;
 
         /// <summary>
         /// How long a planted charge waits before going off by itself. Long enough that tapping
@@ -38,7 +41,7 @@ namespace HyperPuzzle2D.Board
         const float ChargeFuseSeconds = 1.1f;
 
         [SerializeField] float lifeSeconds = 1.8f;
-        [SerializeField] float outOfPlayX = 5.2f;
+        [SerializeField] float outOfPlayX = 4.6f;
 
         Rigidbody2D _body;
         CircleCollider2D _collider;

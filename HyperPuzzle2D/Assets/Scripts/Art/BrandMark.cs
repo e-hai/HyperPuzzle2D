@@ -66,7 +66,7 @@ namespace HyperPuzzle2D.Art
             return tex;
         }
 
-        /// <summary>Same dark-top / violet-bottom ramp the play field uses, plus its centre bloom.</summary>
+        /// <summary>Same sunlit-paper ramp the play field uses, plus its centre bloom.</summary>
         static Color Background(Vector2 p)
         {
             var t = Mathf.InverseLerp(-1f, 1f, p.y);
@@ -130,7 +130,7 @@ namespace HyperPuzzle2D.Art
             }
 
             // Top-lit ramp, matching the shading baked into the in-game block sprite.
-            var shade = Mathf.Lerp(0.76f, 1.14f, Mathf.InverseLerp(-half.y, half.y, q.y));
+            var shade = Mathf.Lerp(0.86f, 1.08f, Mathf.InverseLerp(-half.y, half.y, q.y));
             var lit = new Color(tint.r * shade, tint.g * shade, tint.b * shade, 1f);
             return Blend(dst, lit, alpha);
         }
