@@ -19,7 +19,8 @@ BLOCK_PITCH = 0.8
 BLOCK_SIZE = 0.8
 
 LAYOUT_RE = re.compile(
-    r'new LevelLayout\(\s*"(?P<name>[A-Z]+)",\s*(?P<ammo>\d+),\s*\d+,\s*(?P<rows>(?:"[^"]*",?\s*)+)\)',
+    r'new LevelLayout\(\s*"(?P<name>[A-Z]+)",\s*"(?P<loadout>[BCD]+)",'
+    r'\s*\d+,\s*\d+,\s*\d+,\s*(?P<rows>(?:"[^"]*",?\s*)+)\)',
     re.MULTILINE,
 )
 
@@ -28,7 +29,7 @@ def parse_layouts(source):
     layouts = []
     for match in LAYOUT_RE.finditer(source):
         rows = re.findall(r'"([^"]*)"', match.group("rows"))
-        layouts.append((match.group("name"), int(match.group("ammo")), rows))
+        layouts.append((match.group("name"), len(match.group("loadout")), rows))
     return layouts
 
 

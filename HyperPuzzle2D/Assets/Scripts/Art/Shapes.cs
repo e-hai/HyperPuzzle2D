@@ -15,6 +15,7 @@ namespace HyperPuzzle2D.Art
         static Sprite _circle;
         static Sprite _glow;
         static Sprite _hazard;
+        static Sprite _star;
 
         public static Sprite Solid => _solid != null ? _solid : _solid = BuildSolid();
 
@@ -38,6 +39,9 @@ namespace HyperPuzzle2D.Art
         /// any length instead of stretching them into thin streaks.
         /// </summary>
         public static Sprite Hazard => _hazard != null ? _hazard : _hazard = BuildHazard();
+
+        /// <summary>Five-point star used by the stage rating, tinted by the caller.</summary>
+        public static Sprite Star => _star != null ? _star : _star = BuildStar();
 
         public static Sprite VerticalGradient(Color bottom, Color top)
         {
@@ -168,6 +172,75 @@ namespace HyperPuzzle2D.Art
             tex.SetPixels(pixels);
             tex.Apply();
             return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 128f);
+        }
+
+        static Sprite BuildStar()
+        {
+            const int size = 128;
+            const int points = 5;
+            const float outer = 0.48f;
+            const float inner = 0.20f;
+
+            // The star is drawn white and tinted by the renderer, so only coverage matters here.
+            // Supersampling stands in for an analytic distance field: the spikes are thin enough
+            // that a hard point-in-polygon test alone leaves visibly jagged edges.
+            const int samples = 3;
+
+            var tex = NewTexture(size, size);
+            var pixels = new Color[size * size];
+            for (var y = 0; y < size; y++)
+            {
+                for (var x = 0; x < size; x++)
+                {
+                    var covered = 0;
+                    for (var sy = 0; sy < samples; sy++)
+                    {
+                        for (var sx = 0; sx < samples; sx++)
+                        {
+                            var px = (x + (sx + 0.5f) / samples) / size - 0.5f;
+                            var py = (y + (sy + 0.5f) / samples) / size - 0.5f;
+                            if (InStar(px, py, points, outer, inner))
+                            {
+                                covered++;
+                            }
+                        }
+                    }
+
+                    var alpha = covered / (float)(samples * samples);
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+                }
+            }
+
+            tex.SetPixels(pixels);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        }
+
+        static bool InStar(float x, float y, int points, float outer, float inner)
+        {
+            var radius = Mathf.Sqrt(x * x + y * y);
+            if (radius > outer)
+            {
+                return false;
+            }
+
+            if (radius <= inner)
+            {
+                return true;
+            }
+
+            // Fold the angle into one spike, then compare against the edge running from an outer
+            // tip to the neighbouring inner valley.
+            var sector = Mathf.PI * 2f / points;
+            var half = sector * 0.5f;
+
+            // Measuring from +y puts a tip at the top; the extra half-sector centres each spike
+            // on local = 0 so the edge test below runs from tip to valley.
+            var angle = Mathf.Atan2(x, y) + half;
+            var local = Mathf.Repeat(angle, sector) - half;
+            var edge = inner * outer * Mathf.Sin(half) /
+                       (inner * Mathf.Sin(half - Mathf.Abs(local)) + outer * Mathf.Sin(Mathf.Abs(local)));
+            return radius <= edge;
         }
 
         static Sprite BuildGlow()

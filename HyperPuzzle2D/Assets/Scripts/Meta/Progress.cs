@@ -15,6 +15,8 @@ namespace HyperPuzzle2D.Meta
         const string RunsKey = "runs_started";
         const string StageUnlockedKey = "stage_unlocked";
         const string LastPlayedStageKey = "last_played_stage";
+        const string StageBestPrefix = "stage_best_";
+        const string StageStarsPrefix = "stage_stars_";
 
         /// <summary>Interstitial ads stay quiet for the first few runs so FTUE is not interrupted.</summary>
         public const int AdFreeRuns = 3;
@@ -103,6 +105,49 @@ namespace HyperPuzzle2D.Meta
 
             StageUnlocked = next;
             return true;
+        }
+
+        public static int StageBest(int zeroBasedIndex)
+        {
+            return PlayerPrefs.GetInt(StageBestPrefix + zeroBasedIndex, 0);
+        }
+
+        public static int StageStars(int zeroBasedIndex)
+        {
+            return Mathf.Clamp(PlayerPrefs.GetInt(StageStarsPrefix + zeroBasedIndex, 0), 0, 3);
+        }
+
+        /// <summary>
+        /// Records a finished stage run. Best score and best stars are kept independently: a run
+        /// that scores lower can still not take away a rating the player already earned.
+        /// Returns true when this run beat the stored score.
+        /// </summary>
+        public static bool SubmitStage(int zeroBasedIndex, int score, int stars)
+        {
+            var beatBest = score > StageBest(zeroBasedIndex);
+            if (beatBest)
+            {
+                PlayerPrefs.SetInt(StageBestPrefix + zeroBasedIndex, score);
+            }
+
+            if (stars > StageStars(zeroBasedIndex))
+            {
+                PlayerPrefs.SetInt(StageStarsPrefix + zeroBasedIndex, Mathf.Clamp(stars, 0, 3));
+            }
+
+            PlayerPrefs.Save();
+            return beatBest;
+        }
+
+        public static int TotalStars(int stageCount)
+        {
+            var total = 0;
+            for (var i = 0; i < stageCount; i++)
+            {
+                total += StageStars(i);
+            }
+
+            return total;
         }
 
         /// <summary>Stores the score if it beats the record. Returns true when a new best was set.</summary>

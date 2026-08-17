@@ -90,6 +90,12 @@ namespace HyperPuzzle2D.Core
         /// <summary>Plinth surface the cannon stands on.</summary>
         const float PlinthTopY = -2.55f;
 
+        /// <summary>Empty rating slot: visible enough to read as "not earned yet", not as a star.</summary>
+        static readonly Color UnearnedStarTint = new Color(1f, 1f, 1f, 0.14f);
+
+        /// <summary>Widest loadout the ammo queue can show; longer stages would crowd the chip.</summary>
+        const int MaxLoadoutPips = 6;
+
         [SerializeField] int reviveAmmo = 2;
         [SerializeField] RunMode runMode = RunMode.Stage;
 
@@ -99,6 +105,7 @@ namespace HyperPuzzle2D.Core
         readonly List<Collider2D> _terrainColliders = new List<Collider2D>();
         readonly List<Button> _stageButtons = new List<Button>();
         readonly List<Text> _stageLabels = new List<Text>();
+        readonly List<Image[]> _stageStarIcons = new List<Image[]>();
 
         IAdService _ads;
         CannonController _cannon;
@@ -148,6 +155,12 @@ namespace HyperPuzzle2D.Core
         Image _splashFill;
         Image _goalFill;
         Image _homeProgressFill;
+        Image[] _clearStarIcons;
+        Image[] _ammoPips;
+        Text _shotHint;
+        GameObject _clearStarRow;
+        Image _homeStarIcon;
+        Text _homeStarText;
         GameObject _hudRoot;
         GameObject _failPanel;
         GameObject _clearPanel;
@@ -160,6 +173,7 @@ namespace HyperPuzzle2D.Core
         LevelLayout _layout;
         AppScreen _screen = AppScreen.Splash;
         bool _shotInFlight;
+        int _liveProjectiles;
         float _lastDestructionTime;
         Vector3 _lastScorePosition;
         int _seed;
@@ -188,15 +202,39 @@ namespace HyperPuzzle2D.Core
 
         void Update()
         {
-            if (_screen != AppScreen.Splash || _splashFinished)
+            if (_screen == AppScreen.Splash && !_splashFinished)
             {
+                if (UnityEngine.Input.GetMouseButtonDown(0) || UnityEngine.Input.touchCount > 0)
+                {
+                    FinishSplash();
+                }
+
                 return;
             }
 
-            if (UnityEngine.Input.GetMouseButtonDown(0) || UnityEngine.Input.touchCount > 0)
+            // The cannon ignores input while a shot is out, which leaves the tap free to mean
+            // "go off now" for the shots that carry a special.
+            if (_screen == AppScreen.Play && _shotInFlight &&
+                UnityEngine.Input.GetMouseButtonDown(0) && !PointerOverUi())
             {
-                FinishSplash();
+                TriggerLiveSpecials();
             }
+        }
+
+        static bool PointerOverUi()
+        {
+            var events = UnityEngine.EventSystems.EventSystem.current;
+            if (events == null)
+            {
+                return false;
+            }
+
+            if (UnityEngine.Input.touchCount > 0)
+            {
+                return events.IsPointerOverGameObject(UnityEngine.Input.GetTouch(0).fingerId);
+            }
+
+            return events.IsPointerOverGameObject();
         }
 
         void OnDestroy()
@@ -234,6 +272,8 @@ namespace HyperPuzzle2D.Core
             _loop.StartRun(mode, _layout.Ammo, _blocks.Count, _layout.TargetScore);
             _cannon.ArmAfterPointerRelease();
             _shotInFlight = false;
+            _liveProjectiles = 0;
+            HideShotHint();
             if (_failPanel != null) _failPanel.SetActive(false);
             if (_clearPanel != null) _clearPanel.SetActive(false);
             RefreshHud();
@@ -438,9 +478,17 @@ namespace HyperPuzzle2D.Core
             var goalTrack = UiFactory.Panel(scoreChip.transform, "GoalTrack", new Vector2(0.06f, 0.11f), new Vector2(0.94f, 0.21f), new Color(0f, 0f, 0f, 0.32f), 3f);
             _goalFill = UiFactory.Panel(goalTrack.transform, "GoalFill", Vector2.zero, new Vector2(0f, 1f), Palette.Accent, 3f);
 
-            _ammoText = CreateHudChip(_hudRoot.transform, "AmmoChip", new Vector2(0.74f, HudRowBottom), new Vector2(HudRight, HudRowTop), Loc.Get("hud.ammoCaption"), TextAnchor.MiddleCenter, out _ammoCaption, out _);
+            _ammoText = CreateHudChip(_hudRoot.transform, "AmmoChip", new Vector2(0.74f, HudRowBottom), new Vector2(HudRight, HudRowTop), Loc.Get("hud.ammoCaption"), TextAnchor.MiddleCenter, out _ammoCaption, out var ammoChip);
+
+            // The loadout is fixed per stage, so the queue has to be visible before it matters:
+            // the player picks an aim knowing the next round is a charge, not after firing it.
+            _ammoPips = CreateAmmoPips(ammoChip.transform, new Vector2(0.08f, 0.06f), new Vector2(0.92f, 0.22f));
 
             _targetsText = UiFactory.Label(_hudRoot.transform, "Targets", new Vector2(HudLeft, 0.812f), new Vector2(HudRight, 0.852f), 26, TextAnchor.MiddleCenter, Palette.TextMuted);
+
+            _shotHint = UiFactory.Label(_hudRoot.transform, "ShotHint", new Vector2(0.08f, 0.29f), new Vector2(0.92f, 0.36f), 34, TextAnchor.MiddleCenter, Palette.AccentCool, FontStyle.Bold);
+            UiFactory.AddDropShadow(_shotHint, 3f);
+            _shotHint.gameObject.SetActive(false);
 
             var comboLabel = UiFactory.Label(_hudRoot.transform, "Combo", new Vector2(0.1f, 0.56f), new Vector2(0.9f, 0.68f), 84, TextAnchor.MiddleCenter, Palette.Accent, FontStyle.Bold);
             UiFactory.AddDropShadow(comboLabel, 5f);
@@ -475,6 +523,7 @@ namespace HyperPuzzle2D.Core
                 out _clearTitle,
                 card =>
                 {
+                    _clearStarIcons = CreateStarRow(card, new Vector2(0.24f, 0.42f), new Vector2(0.76f, 0.53f), out _clearStarRow);
                     _clearNextLabel = UiFactory.Pill(card, Loc.Get("clear.next"), new Vector2(0.08f, 0.24f), new Vector2(0.92f, 0.4f), Palette.AccentCool, Palette.TextOnAccent, 38, OnClearNextClicked).GetComponentInChildren<Text>();
                     _clearMenuButton = UiFactory.Pill(card, Loc.Get("common.menu"), new Vector2(0.08f, 0.05f), new Vector2(0.92f, 0.21f), Palette.HudFill, Palette.TextPrimary, 32, ShowHome).gameObject;
                     _clearMenuLabel = _clearMenuButton.GetComponentInChildren<Text>();
@@ -537,7 +586,19 @@ namespace HyperPuzzle2D.Core
 
             var progressCard = UiFactory.Panel(root.transform, "ProgressCard", new Vector2(0.08f, 0.525f), new Vector2(0.92f, 0.7f), Palette.CardFill, 0.5f);
 
-            _menuStageProgressText = UiFactory.Label(progressCard.transform, "StageProgress", new Vector2(0.06f, 0.58f), new Vector2(0.94f, 0.92f), 32, TextAnchor.MiddleCenter, Palette.Accent, FontStyle.Bold);
+            _menuStageProgressText = UiFactory.Label(progressCard.transform, "StageProgress", new Vector2(0.06f, 0.58f), new Vector2(0.6f, 0.92f), 32, TextAnchor.MiddleLeft, Palette.Accent, FontStyle.Bold);
+
+            // Stars collected is the long-term goal, so it sits next to stage progress rather
+            // than behind a menu: clearing every stage no longer means the game is finished.
+            var starIcon = UiFactory.NewUiObject("StarIcon", progressCard.transform);
+            _homeStarIcon = starIcon.AddComponent<Image>();
+            _homeStarIcon.sprite = Shapes.Star;
+            _homeStarIcon.preserveAspect = true;
+            _homeStarIcon.raycastTarget = false;
+            _homeStarIcon.color = Palette.GroundEdge;
+            UiFactory.Anchor(_homeStarIcon.rectTransform, new Vector2(0.63f, 0.62f), new Vector2(0.73f, 0.88f));
+
+            _homeStarText = UiFactory.Label(progressCard.transform, "StarTotal", new Vector2(0.74f, 0.58f), new Vector2(0.94f, 0.92f), 30, TextAnchor.MiddleLeft, Palette.TextPrimary, FontStyle.Bold);
 
             var progressTrack = UiFactory.Panel(progressCard.transform, "Track", new Vector2(0.08f, 0.42f), new Vector2(0.92f, 0.53f), Palette.HudFill, 4f);
             _homeProgressFill = UiFactory.Panel(progressTrack.transform, "Fill", Vector2.zero, new Vector2(0f, 1f), Palette.Accent, 4f);
@@ -603,6 +664,7 @@ namespace HyperPuzzle2D.Core
 
             _stageButtons.Clear();
             _stageLabels.Clear();
+            _stageStarIcons.Clear();
 
             const int columns = 2;
             var count = LevelLibrary.Count;
@@ -628,8 +690,13 @@ namespace HyperPuzzle2D.Core
                     24,
                     () => OnStageChosen(index));
 
+                // Split the pill: stage name on top, its earned rating underneath.
+                var label = button.GetComponentInChildren<Text>();
+                UiFactory.Anchor(label.rectTransform, new Vector2(0f, 0.36f), Vector2.one);
+
                 _stageButtons.Add(button);
-                _stageLabels.Add(button.GetComponentInChildren<Text>());
+                _stageLabels.Add(label);
+                _stageStarIcons.Add(CreateStarRow(button.transform, new Vector2(0.32f, 0.1f), new Vector2(0.68f, 0.34f), out _));
             }
 
             _stageBackLabel = UiFactory.Pill(card.transform, Loc.Get("common.back"), new Vector2(0.2f, 0.04f), new Vector2(0.8f, 0.12f), Palette.CannonHub, Palette.TextPrimary, 28, () =>
@@ -698,6 +765,74 @@ namespace HyperPuzzle2D.Core
             captionText = UiFactory.Label(chip.transform, "Caption", new Vector2(0.06f, 0.60f), new Vector2(0.94f, 0.93f), 24, alignment, Palette.TextMuted, FontStyle.Normal, caption);
             var value = UiFactory.Label(chip.transform, "Value", new Vector2(0.06f, 0.24f), new Vector2(0.94f, 0.62f), 46, alignment, Palette.TextPrimary, FontStyle.Bold);
             return value;
+        }
+
+        /// <summary>
+        /// One dot per shot in the stage loadout. Built at the widest supported size and laid out
+        /// for real in <see cref="RefreshAmmoPips"/>, which knows the current stage's count.
+        /// </summary>
+        static Image[] CreateAmmoPips(Transform parent, Vector2 min, Vector2 max)
+        {
+            var row = UiFactory.NewUiObject("AmmoPips", parent);
+            UiFactory.Anchor((RectTransform)row.transform, min, max);
+
+            var pips = new Image[MaxLoadoutPips];
+            for (var i = 0; i < pips.Length; i++)
+            {
+                var go = UiFactory.NewUiObject("Pip" + i, row.transform);
+                var image = go.AddComponent<Image>();
+                image.sprite = Shapes.Circle;
+                image.preserveAspect = true;
+                image.raycastTarget = false;
+                pips[i] = image;
+            }
+
+            return pips;
+        }
+
+        /// <summary>
+        /// Three evenly spaced rating stars under a container, so a caller can hide the whole row
+        /// in modes that are not rated. Tinting happens later, in <see cref="RefreshStars"/>.
+        /// </summary>
+        static Image[] CreateStarRow(Transform parent, Vector2 min, Vector2 max, out GameObject row)
+        {
+            row = UiFactory.NewUiObject("Stars", parent);
+            UiFactory.Anchor((RectTransform)row.transform, min, max);
+
+            var icons = new Image[3];
+            var cell = 1f / icons.Length;
+            const float padding = 0.04f;
+            for (var i = 0; i < icons.Length; i++)
+            {
+                var go = UiFactory.NewUiObject("Star" + i, row.transform);
+                var image = go.AddComponent<Image>();
+                image.sprite = Shapes.Star;
+                image.preserveAspect = true;
+                image.raycastTarget = false;
+                UiFactory.Anchor(
+                    image.rectTransform,
+                    new Vector2(cell * i + padding, 0f),
+                    new Vector2(cell * (i + 1) - padding, 1f));
+                icons[i] = image;
+            }
+
+            return icons;
+        }
+
+        static void RefreshStars(Image[] icons, int stars)
+        {
+            if (icons == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < icons.Length; i++)
+            {
+                if (icons[i] != null)
+                {
+                    icons[i].color = i < stars ? Palette.GroundEdge : UnearnedStarTint;
+                }
+            }
         }
 
         static GameObject BuildResultPanel(Transform parent, string name, string title, out Text scoreText, out Text bestText, out Text titleText, System.Action<Transform> buildActions)
@@ -902,7 +1037,15 @@ namespace HyperPuzzle2D.Core
 
         void OnCannonFired(Vector2 velocity)
         {
-            if (_shotInFlight || !_loop.TryConsumeAmmo())
+            if (_shotInFlight)
+            {
+                return;
+            }
+
+            // Read the loadout before spending the shot, while the remaining count still points
+            // at the round about to be fired.
+            var kind = CurrentShotKind();
+            if (!_loop.TryConsumeAmmo())
             {
                 return;
             }
@@ -924,11 +1067,38 @@ namespace HyperPuzzle2D.Core
             }
 
             var spawn = _cannon.MuzzlePosition;
-            const float projectileRadius = 0.22f;
-            var ball = CreateCircleRenderer("Projectile", spawn, projectileRadius, Palette.Projectile, SortingOrders.Projectile);
+            SpawnProjectile(kind, spawn, velocity);
+
+            HitBurst.Play(_effectRoot, spawn, Palette.Accent, 6, 3.5f);
+            if (CameraShake.Instance != null)
+            {
+                CameraShake.Instance.Shake(0.06f);
+            }
+
+            ShowShotHint(kind);
+            RefreshHud();
+        }
+
+        /// <summary>The shot the cannon is about to fire, from this stage's loadout.</summary>
+        ProjectileKind CurrentShotKind()
+        {
+            if (_layout == null)
+            {
+                return ProjectileKind.Ball;
+            }
+
+            return _layout.ShotAt(_layout.Ammo - _loop.Ammo);
+        }
+
+        Projectile SpawnProjectile(ProjectileKind kind, Vector3 position, Vector2 velocity)
+        {
+            var radius = ProjectileRadius(kind);
+            var tint = ProjectileTint(kind);
+            var ball = CreateCircleRenderer("Projectile", position, radius, tint, SortingOrders.Projectile);
             ball.transform.SetParent(_projectileRoot);
-            // Shapes.Circle is one unit wide and the transform carries the 0.44 diameter, so a
-            // local radius of 0.5 exactly matches the 0.22 world-space visual radius.
+
+            // Shapes.Circle is one unit wide and the transform carries the diameter, so a local
+            // radius of 0.5 always matches the world-space visual radius.
             var projectileCollider = ball.gameObject.AddComponent<CircleCollider2D>();
             projectileCollider.radius = 0.5f;
             foreach (var terrainCollider in _terrainColliders)
@@ -939,18 +1109,29 @@ namespace HyperPuzzle2D.Core
                 }
             }
 
+            if (kind == ProjectileKind.Charge)
+            {
+                // A bright core reads as "armed" and separates the charge from a plain ball at a
+                // glance, which matters because the two fly identically.
+                var core = CreateCircleRenderer("Core", position, radius, Palette.ExplosionCore, SortingOrders.Projectile + 1);
+                core.transform.SetParent(ball.transform, false);
+                core.transform.localPosition = Vector3.zero;
+                // Local, so it scales with the shell the renderer already sized.
+                core.transform.localScale = Vector3.one * 0.45f;
+            }
+
             var trail = ball.gameObject.AddComponent<TrailRenderer>();
             trail.time = 0.3f;
-            trail.startWidth = 0.34f;
+            trail.startWidth = radius * 1.55f;
             trail.endWidth = 0f;
             trail.material = new Material(Shader.Find("Sprites/Default"));
-            trail.startColor = new Color(Palette.Accent.r, Palette.Accent.g, Palette.Accent.b, 0.75f);
-            trail.endColor = new Color(Palette.Accent.r, Palette.Accent.g, Palette.Accent.b, 0f);
+            trail.startColor = new Color(tint.r, tint.g, tint.b, 0.75f);
+            trail.endColor = new Color(tint.r, tint.g, tint.b, 0f);
             trail.sortingOrder = SortingOrders.Trail;
 
             var body = ball.gameObject.AddComponent<Rigidbody2D>();
             body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-            body.mass = 1.35f;
+            body.mass = ProjectileMass(kind);
             body.linearDamping = 0.05f;
             body.sharedMaterial = ProjectileMaterial;
 
@@ -959,14 +1140,124 @@ namespace HyperPuzzle2D.Core
             hitWatcher.Hit += OnProjectileHit;
             hitWatcher.SurfaceHit += OnProjectileSurfaceHit;
 
-            HitBurst.Play(_effectRoot, spawn, Palette.Accent, 6, 3.5f);
-            if (CameraShake.Instance != null)
+            _liveProjectiles++;
+            projectile.Launch(kind, velocity, OnProjectileResolved, OnProjectileSpecial);
+            return projectile;
+        }
+
+        static float ProjectileRadius(ProjectileKind kind)
+        {
+            return kind == ProjectileKind.Fragment ? 0.13f : 0.22f;
+        }
+
+        static float ProjectileMass(ProjectileKind kind)
+        {
+            switch (kind)
             {
-                CameraShake.Instance.Shake(0.06f);
+                case ProjectileKind.Fragment: return 0.5f;
+                case ProjectileKind.Cluster: return 1.2f;
+                case ProjectileKind.Charge: return 1.2f;
+                default: return 1.35f;
+            }
+        }
+
+        static Color ProjectileTint(ProjectileKind kind)
+        {
+            switch (kind)
+            {
+                case ProjectileKind.Cluster:
+                case ProjectileKind.Fragment: return Palette.AccentCool;
+                case ProjectileKind.Charge: return Palette.Explosive;
+                default: return Palette.Projectile;
+            }
+        }
+
+        /// <summary>
+        /// A shot ends when nothing of it is left in the air. Counting rather than resolving on
+        /// the first projectile matters for clusters, whose fragments outlive the round that
+        /// spawned them.
+        /// </summary>
+        void OnProjectileResolved(Projectile projectile)
+        {
+            _liveProjectiles = Mathf.Max(0, _liveProjectiles - 1);
+            if (_liveProjectiles == 0)
+            {
+                HideShotHint();
+                StartCoroutine(ResolveShotRoutine());
+            }
+        }
+
+        void OnProjectileSpecial(Projectile projectile)
+        {
+            if (projectile.Kind == ProjectileKind.Cluster)
+            {
+                SplitCluster(projectile);
+                return;
             }
 
-            projectile.Launch(velocity, _ => StartCoroutine(ResolveShotRoutine()));
-            RefreshHud();
+            if (projectile.Kind == ProjectileKind.Charge)
+            {
+                DetonateCharge(projectile);
+            }
+        }
+
+        void SplitCluster(Projectile source)
+        {
+            const int fragments = 3;
+            const float spreadDegrees = 15f;
+
+            var origin = source.transform.position;
+            var velocity = source.Velocity;
+            var heading = velocity.sqrMagnitude > 0.01f ? velocity.normalized : Vector2.up;
+            var speed = Mathf.Max(velocity.magnitude, 7f) * 0.95f;
+
+            HideShotHint();
+            _impactFeedback?.PlayContact(new ImpactEvent(origin, -heading, heading * speed, 26f), Palette.AccentCool);
+
+            // Spread across the flight path rather than along it, and drop back slightly: a split
+            // triggered by impact happens while the cluster is touching a block, so spawning
+            // forward would bury the fragments inside that collider and fire them out sideways.
+            var lateral = new Vector2(-heading.y, heading.x);
+
+            // Spawn before retiring the parent: the live count must never touch zero mid-split, or
+            // the shot resolves and hands control back while the fragments are still in the air.
+            for (var i = 0; i < fragments; i++)
+            {
+                var rank = i - (fragments - 1) * 0.5f;
+                var direction = (Vector2)(Quaternion.Euler(0f, 0f, rank * spreadDegrees) * heading);
+                var spawn = origin + (Vector3)(lateral * (rank * 0.3f) - heading * 0.12f);
+                SpawnProjectile(ProjectileKind.Fragment, spawn, direction * speed);
+            }
+
+            source.Resolve();
+        }
+
+        void DetonateCharge(Projectile charge)
+        {
+            var centre = charge.transform.position;
+            HideShotHint();
+            _lastDestructionTime = Time.time;
+            _impactFeedback?.PlayExplosion(centre, Mathf.Max(1, _loop.Combo));
+            Explode(centre, null);
+            charge.Resolve();
+        }
+
+        /// <summary>Spends the pending special on whatever is still in the air.</summary>
+        void TriggerLiveSpecials()
+        {
+            if (_projectileRoot == null)
+            {
+                return;
+            }
+
+            var live = _projectileRoot.GetComponentsInChildren<Projectile>();
+            foreach (var projectile in live)
+            {
+                if (projectile.TryTrigger())
+                {
+                    return;
+                }
+            }
         }
 
         void OnProjectileHit(DestructibleBlock block, ImpactEvent impact)
@@ -1129,14 +1420,25 @@ namespace HyperPuzzle2D.Core
             }
             else if (state == GameState.Cleared)
             {
+                var stars = 0;
+                var newBest = false;
                 if (runMode == RunMode.Stage)
                 {
                     Progress.UnlockAfterClear(_stageIndex, LevelLibrary.Count);
+                    stars = _layout != null ? _layout.StarsFor(_loop.Score) : 0;
+                    newBest = Progress.SubmitStage(_stageIndex, _loop.Score, stars);
                 }
 
                 Sfx.Instance?.Cleared();
                 Haptics.Light();
-                ShowResult(_clearScoreText, _clearBestText);
+                ShowResult(_clearScoreText, _clearBestText, newBest);
+                RefreshStars(_clearStarIcons, stars);
+                if (_clearStarRow != null)
+                {
+                    // Only stages carry a rating; endless and daily runs are scored, not graded.
+                    _clearStarRow.SetActive(runMode == RunMode.Stage);
+                }
+
                 RefreshClearActions();
                 _clearPanel.SetActive(true);
                 _ftueHint?.Hide();
@@ -1144,7 +1446,7 @@ namespace HyperPuzzle2D.Core
         }
 
         /// <summary>Fills a result card's score line and commits the run to the best-score store.</summary>
-        void ShowResult(Text scoreText, Text bestText)
+        void ShowResult(Text scoreText, Text bestText, bool stageNewBest = false)
         {
             var score = _loop.Score;
             scoreText.text = _loop.TargetScore > 0
@@ -1153,9 +1455,19 @@ namespace HyperPuzzle2D.Core
 
             if (runMode == RunMode.Stage)
             {
-                var unlocked = Mathf.Clamp(Progress.StageUnlocked, 1, LevelLibrary.Count);
-                bestText.text = Loc.Format("menu.stage.progress", unlocked, LevelLibrary.Count);
-                bestText.color = Palette.AccentCool;
+                // Stage runs were already committed by the caller, which knows whether this run
+                // beat the stored score; re-reading the store here would always say it did not.
+                if (stageNewBest)
+                {
+                    bestText.text = Loc.Get("result.newBest");
+                    bestText.color = Palette.Accent;
+                }
+                else
+                {
+                    bestText.text = Loc.Format("result.best", Progress.StageBest(_stageIndex));
+                    bestText.color = Palette.TextMuted;
+                }
+
                 return;
             }
 
@@ -1183,12 +1495,6 @@ namespace HyperPuzzle2D.Core
                 var previous = _daily.LoadBestScore(_seed);
                 _daily.SaveBestScore(_seed, score);
                 return (Mathf.Max(previous, score), score > previous);
-            }
-
-            if (runMode == RunMode.Stage)
-            {
-                // Stage runs keep their own score display but do not overwrite endless best.
-                return (score, false);
             }
 
             var previousBest = Progress.EndlessBest;
@@ -1369,6 +1675,14 @@ namespace HyperPuzzle2D.Core
                 _homeProgressFill.rectTransform.anchorMax = new Vector2(cleared, 1f);
             }
 
+            if (_homeStarText != null)
+            {
+                _homeStarText.text = Loc.Format(
+                    "menu.stars",
+                    Progress.TotalStars(LevelLibrary.Count),
+                    LevelLibrary.Count * 3);
+            }
+
             if (_menuBestText != null)
             {
                 _menuBestText.text = Loc.Format("menu.best", Progress.EndlessBest);
@@ -1394,6 +1708,11 @@ namespace HyperPuzzle2D.Core
                 {
                     _stageLabels[i].text = label;
                     _stageLabels[i].color = unlocked ? Palette.TextPrimary : Palette.TextMuted;
+                }
+
+                if (i < _stageStarIcons.Count)
+                {
+                    RefreshStars(_stageStarIcons[i], unlocked ? Progress.StageStars(i) : 0);
                 }
 
                 _stageButtons[i].interactable = unlocked;
@@ -1570,6 +1889,8 @@ namespace HyperPuzzle2D.Core
                 _ammoText.text = _loop.Ammo.ToString();
             }
 
+            RefreshAmmoPips();
+
             if (_goalFill != null)
             {
                 var progress = _loop.TargetScore > 0
@@ -1597,6 +1918,71 @@ namespace HyperPuzzle2D.Core
                 {
                     _targetsText.text = Loc.Format("hud.targets", Loc.LevelName(_layout.Name), _loop.TargetsRemaining);
                 }
+            }
+        }
+
+        void RefreshAmmoPips()
+        {
+            if (_ammoPips == null)
+            {
+                return;
+            }
+
+            var count = _layout != null ? Mathf.Min(_layout.Ammo, _ammoPips.Length) : 0;
+            var fired = _layout != null ? _layout.Ammo - _loop.Ammo : 0;
+            var cell = count > 0 ? 1f / count : 1f;
+
+            for (var i = 0; i < _ammoPips.Length; i++)
+            {
+                var pip = _ammoPips[i];
+                if (pip == null)
+                {
+                    continue;
+                }
+
+                var inUse = i < count;
+                pip.gameObject.SetActive(inUse);
+                if (!inUse)
+                {
+                    continue;
+                }
+
+                // Re-spread every refresh so a three and a four shot stage both stay centred.
+                const float gap = 0.02f;
+                UiFactory.Anchor(
+                    pip.rectTransform,
+                    new Vector2(cell * i + gap, 0f),
+                    new Vector2(cell * (i + 1) - gap, 1f));
+
+                var tint = ProjectileTint(_layout.ShotAt(i));
+                pip.color = i < fired ? new Color(tint.r, tint.g, tint.b, 0.22f) : tint;
+            }
+        }
+
+        /// <summary>Announces that this shot answers a tap. Plain balls say nothing.</summary>
+        void ShowShotHint(ProjectileKind kind)
+        {
+            if (_shotHint == null)
+            {
+                return;
+            }
+
+            if (!Projectile.HasSpecial(kind))
+            {
+                HideShotHint();
+                return;
+            }
+
+            _shotHint.text = Loc.Get(kind == ProjectileKind.Cluster ? "shot.tapCluster" : "shot.tapCharge");
+            _shotHint.color = ProjectileTint(kind);
+            _shotHint.gameObject.SetActive(true);
+        }
+
+        void HideShotHint()
+        {
+            if (_shotHint != null)
+            {
+                _shotHint.gameObject.SetActive(false);
             }
         }
 
