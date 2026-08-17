@@ -1,15 +1,18 @@
 namespace HyperPuzzle2D.Board
 {
     /// <summary>
-    /// First batch of hand-authored structures. Each one should fail differently:
-    /// dense stacks reward raw power, supported shapes reward hitting the pillar.
+    /// The hand-authored campaign. Every stage carries a readable weak point and enough brittle
+    /// mass to collapse within one or two shots: the draw here is watching a structure come apart,
+    /// so a board that survives an honest hit costs more than an easy stage ever would.
+    /// Variety comes from where the weak point sits, not from how much punishment a board absorbs.
     /// </summary>
     /// <remarks>
     /// Glyphs: '#' block, 'G' brittle, '!' explosive, 'X' heavy, 'O' ball,
     /// '|' pillar, '=' beam, '.' empty.
     /// Rows are written top-first. Every non-beam cell needs something directly beneath it,
     /// because each cell is its own rigid body; only beams span a gap.
-    /// Target scores assume roughly two hits per shot: dense boards chain more, so they ask more.
+    /// Target scores sit near what a single decent shot already pays, so progress never stalls
+    /// on a board the player has visibly wrecked.
     /// </remarks>
     public static class LevelLibrary
     {
@@ -39,45 +42,49 @@ namespace HyperPuzzle2D.Board
                 ".!.!.",
                 ".#.#."),
 
-            // Wide base, narrow top. Low shots scatter the base and drop everything.
+            // Wide brittle base with the core one row up: a low shot sweeps the whole footing out.
             new LevelLayout(
-                "PYRAMID", 4, 70,
+                "PYRAMID", 3, 150,
                 "..O..",
-                ".###.",
-                "#####"),
+                ".G!G.",
+                "GGGGG"),
 
-            // Everything rides one central leg: the classic one-shot topple.
+            // Everything rides one leg, and that leg is the core: the classic one-shot topple.
+            // The brittle plinth widens the miss window, so a low shot still shatters into the leg
+            // instead of sailing under a board that is only one cell wide where it matters.
             new LevelLayout(
-                "TABLE", 4, 50,
+                "TABLE", 3, 120,
                 ".OOO.",
                 ".===.",
-                "..|..",
-                "..#.."),
+                "..!..",
+                ".GGG."),
 
-            // Dense shell around a heavy core that resists being nudged.
+            // Brittle shell around a buried core. Any honest hit cracks through and sets it off,
+            // and the heavy on top is a trophy to drop rather than armour to grind down.
             new LevelLayout(
-                "VAULT", 6, 120,
-                ".OOO.",
-                ".###.",
-                ".#X#.",
-                ".###."),
+                "VAULT", 3, 180,
+                ".OXO.",
+                ".GGG.",
+                ".G!G.",
+                ".GGG."),
 
-            // Alternating decks: collapsing the lower legs cascades the whole stack.
+            // Two decks on explosive feet: taking either foot cascades both floors.
             new LevelLayout(
-                "SHELVES", 5, 80,
+                "SHELVES", 3, 150,
                 ".OOO.",
                 ".===.",
                 ".|.|.",
                 ".===.",
-                ".|.|."),
+                ".!.!."),
 
-            // Widest board; edge columns sit near the shelf lip and clear easily.
+            // Widest board and the finale: twin cores inside a brittle wall, so a centred shot
+            // can take the entire face down at once.
             new LevelLayout(
-                "WALL", 6, 150,
+                "WALL", 4, 220,
                 "OO.OO",
-                "#####",
-                "#####",
-                "#####"),
+                "GGGGG",
+                "G!G!G",
+                "GGGGG"),
         };
 
         public static int Count => All.Length;

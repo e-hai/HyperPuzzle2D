@@ -21,6 +21,9 @@ namespace HyperPuzzle2D.Input
         [SerializeField] int previewDots = 22;
         [SerializeField] float previewStep = 0.05f;
 
+        /// <summary>How far above the horizon the flattest legal shot sits.</summary>
+        const float MinElevationDegrees = 5f;
+
         public bool CanFire { get; set; } = true;
 
         public event System.Action<Vector2> Fired;
@@ -163,16 +166,45 @@ namespace HyperPuzzle2D.Input
                 delta = delta.normalized * maxPull;
             }
 
-            // Bias upward so a drag straight across still produces a lobbing shot.
-            if (delta.y < 0.05f)
+            _pull = ClampToUpperHalf(delta);
+
+            // A pull too small to aim with leaves the barrel where the player last put it, rather
+            // than snapping it somewhere arbitrary the moment a finger touches down.
+            if (_pull.sqrMagnitude > 1e-6f)
             {
-                delta.y = 0.05f;
+                transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(_pull.y, _pull.x) * Mathf.Rad2Deg - 90f);
             }
 
-            _pull = delta;
-            transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(_pull.y, _pull.x) * Mathf.Rad2Deg - 90f);
-
             DrawPreview(ComputeVelocity());
+        }
+
+        /// <summary>
+        /// Aiming is limited to the upper half turn. The cannon stands on a plinth, so every angle
+        /// below the horizon fires into it, and the barrel visibly pointing at the floor reads as
+        /// a broken control rather than a bad shot.
+        /// Clamping by angle instead of flattening the vector matters: flattening also destroyed
+        /// the pull length, which dropped the shot under the minimum charge and turned an
+        /// over-dragged aim into a dead vertical preview and no shot at all.
+        /// </summary>
+        static Vector2 ClampToUpperHalf(Vector2 pull)
+        {
+            var magnitude = pull.magnitude;
+            if (magnitude < 1e-4f)
+            {
+                return Vector2.zero;
+            }
+
+            var minSin = Mathf.Sin(MinElevationDegrees * Mathf.Deg2Rad);
+            if (pull.y >= magnitude * minSin)
+            {
+                return pull;
+            }
+
+            // Ride the horizon on the side the player pulled toward, at full strength. A pull with
+            // no horizontal intent at all defaults downrange instead of firing off the back.
+            var side = pull.x < 0f ? -1f : 1f;
+            var cos = Mathf.Cos(MinElevationDegrees * Mathf.Deg2Rad);
+            return new Vector2(side * magnitude * cos, magnitude * minSin);
         }
 
         Vector3 PointerWorld()
@@ -193,6 +225,19 @@ namespace HyperPuzzle2D.Input
             _chargeRing.transform.position = origin;
             _chargeRing.transform.localScale = Vector3.one * Mathf.Lerp(0.24f, 0.58f, charge);
             _chargeRing.color = new Color(tint.r, tint.g, tint.b, 0.34f);
+
+            // Below the firing threshold there is no shot to preview. Integrating a zero velocity
+            // would draw the ball's free fall as a line dropping off the bottom of the screen,
+            // which looks exactly like the cannon is aimed at the floor.
+            if (velocity.sqrMagnitude <= 0.01f)
+            {
+                foreach (var dot in _previewDots)
+                {
+                    dot.gameObject.SetActive(false);
+                }
+
+                return;
+            }
 
             var previous = (Vector2)origin;
             var blocked = false;

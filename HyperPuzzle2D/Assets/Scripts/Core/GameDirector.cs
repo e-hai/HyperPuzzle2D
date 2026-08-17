@@ -125,6 +125,7 @@ namespace HyperPuzzle2D.Core
         Text _failMenuLabel;
         Text _clearNextLabel;
         Text _clearMenuLabel;
+        GameObject _clearMenuButton;
         Text _menuTitle;
         Text _menuTagline;
         Text _menuBestText;
@@ -355,7 +356,7 @@ namespace HyperPuzzle2D.Core
             // action, and grounded pillars fill that space instead of leaving it empty.
             var plinthHeight = PlinthTopY - ClearY;
             CreateSolid("Plinth", new Vector3(CannonPivot.x, PlinthTopY - plinthHeight * 0.5f, 0f), new Vector2(2.6f, plinthHeight), Palette.Ground);
-            CreateTrim("PlinthTrim", new Vector3(CannonPivot.x, PlinthTopY - 0.04f, 0f), new Vector2(2.6f, 0.09f), Palette.GroundEdge);
+            CreateHazardTrim("PlinthTrim", new Vector3(CannonPivot.x, PlinthTopY - 0.09f, 0f), new Vector2(2.6f, 0.18f));
 
             // Support column: the target shelf is an island, so knocked-off blocks fall away.
             var shelfBottom = ShelfTopY - 0.5f;
@@ -363,7 +364,7 @@ namespace HyperPuzzle2D.Core
             CreateSolid("Column", new Vector3(ShelfCenterX, shelfBottom - columnHeight * 0.5f, 0f), new Vector2(1.1f, columnHeight), Palette.Wall);
 
             CreateSolid("Shelf", new Vector3(ShelfCenterX, ShelfTopY - 0.25f, 0f), new Vector2(4.4f, 0.5f), Palette.Shelf);
-            CreateTrim("ShelfTrim", new Vector3(ShelfCenterX, ShelfTopY - 0.02f, 0f), new Vector2(4.4f, 0.09f), Palette.GroundEdge);
+            CreateHazardTrim("ShelfTrim", new Vector3(ShelfCenterX, ShelfTopY - 0.09f, 0f), new Vector2(4.4f, 0.18f));
         }
 
         void BuildCannon()
@@ -475,7 +476,8 @@ namespace HyperPuzzle2D.Core
                 card =>
                 {
                     _clearNextLabel = UiFactory.Pill(card, Loc.Get("clear.next"), new Vector2(0.08f, 0.24f), new Vector2(0.92f, 0.4f), Palette.AccentCool, Palette.TextOnAccent, 38, OnClearNextClicked).GetComponentInChildren<Text>();
-                    _clearMenuLabel = UiFactory.Pill(card, Loc.Get("common.menu"), new Vector2(0.08f, 0.05f), new Vector2(0.92f, 0.21f), Palette.HudFill, Palette.TextPrimary, 32, ShowHome).GetComponentInChildren<Text>();
+                    _clearMenuButton = UiFactory.Pill(card, Loc.Get("common.menu"), new Vector2(0.08f, 0.05f), new Vector2(0.92f, 0.21f), Palette.HudFill, Palette.TextPrimary, 32, ShowHome).gameObject;
+                    _clearMenuLabel = _clearMenuButton.GetComponentInChildren<Text>();
                 });
 
             _menuPanel = BuildHome(canvasGo.transform);
@@ -1465,6 +1467,7 @@ namespace HyperPuzzle2D.Core
                         : Loc.Get("clear.title");
                 }
 
+                SetSecondaryClearVisible(!isLast);
                 return;
             }
 
@@ -1472,11 +1475,25 @@ namespace HyperPuzzle2D.Core
             {
                 _clearNextLabel.text = Loc.Get("clear.home");
                 if (_clearTitle != null) _clearTitle.text = Loc.Get("clear.title");
+                SetSecondaryClearVisible(false);
                 return;
             }
 
             _clearNextLabel.text = Loc.Get("menu.endless");
             if (_clearTitle != null) _clearTitle.text = Loc.Get("clear.title");
+            SetSecondaryClearVisible(true);
+        }
+
+        /// <summary>
+        /// The secondary action always goes home, so it has to disappear whenever the primary
+        /// already does; two buttons reading HOME leaves the player picking between identical twins.
+        /// </summary>
+        void SetSecondaryClearVisible(bool visible)
+        {
+            if (_clearMenuButton != null)
+            {
+                _clearMenuButton.SetActive(visible);
+            }
         }
 
         void RefreshFtue()
@@ -1594,17 +1611,21 @@ namespace HyperPuzzle2D.Core
             return renderer.gameObject;
         }
 
-        /// <summary>Thin decorative strip; too slim for a 9-sliced sprite's corners.</summary>
-        void CreateTrim(string name, Vector3 position, Vector2 size, Color color)
+        /// <summary>
+        /// Hazard tape along a platform lip. Tiled so the diagonal stripes stay square regardless
+        /// of how long the trim is, which is what sells the demolition-site read.
+        /// </summary>
+        void CreateHazardTrim(string name, Vector3 position, Vector2 size)
         {
             var go = new GameObject(name);
             go.transform.SetParent(_worldRoot);
             go.transform.position = position;
-            go.transform.localScale = new Vector3(size.x, size.y, 1f);
 
             var renderer = go.AddComponent<SpriteRenderer>();
-            renderer.sprite = Shapes.Solid;
-            renderer.color = new Color(color.r, color.g, color.b, 0.7f);
+            renderer.sprite = Shapes.Hazard;
+            renderer.drawMode = SpriteDrawMode.Tiled;
+            renderer.tileMode = SpriteTileMode.Continuous;
+            renderer.size = size;
             renderer.sortingOrder = SortingOrders.Structure + 1;
         }
 

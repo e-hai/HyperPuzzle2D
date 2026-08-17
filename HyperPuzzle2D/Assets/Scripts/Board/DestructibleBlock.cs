@@ -48,19 +48,23 @@ namespace HyperPuzzle2D.Board
             switch (material)
             {
                 case DestructionMaterial.Brittle:
-                    resistance = 18f;
+                    // Glass, not masonry. A lobbed shot arrives near the top of its arc with
+                    // little energy left, and a brittle block that survives that reads as a bug.
+                    resistance = 9f;
                     hitScore = 5;
                     breakScore = 25;
                     knockOffScore = 10;
                     break;
                 case DestructionMaterial.Explosive:
-                    resistance = 24f;
+                    // Deliberately fragile: the core is the payoff, so reaching it should be the
+                    // hard part, never surviving the hit that lands on it.
+                    resistance = 14f;
                     hitScore = 5;
                     breakScore = 35;
                     knockOffScore = 10;
                     break;
                 case DestructionMaterial.Support:
-                    resistance = 34f;
+                    resistance = 24f;
                     hitScore = 5;
                     breakScore = 25;
                     knockOffScore = 15;
@@ -72,19 +76,23 @@ namespace HyperPuzzle2D.Board
                     knockOffScore = 25;
                     break;
                 case DestructionMaterial.Beam:
-                    resistance = 75f;
+                    // A beam is the span holding a deck up, so snapping one is the payoff shot.
+                    // Anything tougher just eats a good hit and drops nothing.
+                    resistance = 28f;
                     hitScore = 8;
                     breakScore = 30;
                     knockOffScore = 20;
                     break;
                 case DestructionMaterial.Ball:
-                    resistance = 95f;
+                    // Balls ride on top, so they are what a lobbed shot meets first. At the old
+                    // value that opening hit scored a few points and moved nothing.
+                    resistance = 45f;
                     hitScore = 8;
                     breakScore = 25;
                     knockOffScore = 20;
                     break;
                 default:
-                    resistance = 58f;
+                    resistance = 40f;
                     hitScore = 6;
                     breakScore = 20;
                     knockOffScore = 15;

@@ -14,6 +14,7 @@ namespace HyperPuzzle2D.Art
         static Sprite _blockRect;
         static Sprite _circle;
         static Sprite _glow;
+        static Sprite _hazard;
 
         public static Sprite Solid => _solid != null ? _solid : _solid = BuildSolid();
 
@@ -30,6 +31,13 @@ namespace HyperPuzzle2D.Art
 
         /// <summary>Soft radial falloff used for glows and light pools.</summary>
         public static Sprite Glow => _glow != null ? _glow : _glow = BuildGlow();
+
+        /// <summary>
+        /// One 0.5-unit tile of diagonal hazard tape. Authored to wrap seamlessly so a
+        /// <see cref="SpriteDrawMode.Tiled"/> renderer keeps the stripes the same size on trims of
+        /// any length instead of stretching them into thin streaks.
+        /// </summary>
+        public static Sprite Hazard => _hazard != null ? _hazard : _hazard = BuildHazard();
 
         public static Sprite VerticalGradient(Color bottom, Color top)
         {
@@ -130,6 +138,36 @@ namespace HyperPuzzle2D.Art
             tex.SetPixels(pixels);
             tex.Apply();
             return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        }
+
+        static Sprite BuildHazard()
+        {
+            // 64 px tile at 128 PPU = 0.5 world units. Stripe period along (x + y) is 32 px, which
+            // divides 64 evenly, so the pattern tiles seamlessly on both axes.
+            const int size = 64;
+            const int period = 32;
+            var yellow = Palette.HazardStripe;
+            var black = Palette.HazardStripeAlt;
+
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Repeat,
+            };
+
+            var pixels = new Color[size * size];
+            for (var y = 0; y < size; y++)
+            {
+                for (var x = 0; x < size; x++)
+                {
+                    var band = Mathf.Repeat(x + y, period) < period * 0.5f;
+                    pixels[y * size + x] = band ? yellow : black;
+                }
+            }
+
+            tex.SetPixels(pixels);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 128f);
         }
 
         static Sprite BuildGlow()
