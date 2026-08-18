@@ -78,35 +78,47 @@ namespace HyperPuzzle2D.Art
             return color;
         }
 
+        /// <summary>Sumi-ink for the paper figure the reticle is aimed at.</summary>
+        static readonly Color Ink = new Color(0.20f, 0.16f, 0.12f, 1f);
+
         /// <summary>
-        /// A leaning three-block stack with the cannonball streaking in from the lower left:
-        /// the two things the game is about, in shapes big enough to survive a 36 px icon.
+        /// A paper-target mark: a sumi-ink head-and-shoulders bust behind a vermilion aiming
+        /// reticle. It reads at a 36 px launcher size as "shoot the paper figure", matching the
+        /// gameplay instead of the old brick-and-cannonball icon.
         /// </summary>
         static Color Mark(Color canvas, Vector2 rawP, float rawTexel)
         {
-            // The authored shapes sit a little low and left of centre; nudge the whole group back
-            // into the middle and let it fill more of the frame.
-            const float fill = 1.05f;
-            var p = (rawP - new Vector2(-0.02f, 0.08f)) / fill;
+            const float fill = 1.02f;
+            var p = rawP / fill;
             var texel = rawTexel / fill;
 
-            var trailDir = new Vector2(-0.62f, -0.78f);
-            for (var i = 3; i >= 1; i--)
-            {
-                var offset = trailDir * (0.17f * i);
-                var radius = 0.155f - 0.028f * i;
-                canvas = Circle(canvas, p, new Vector2(-0.42f, -0.46f) + offset, radius, Palette.Accent, texel, 0.30f - 0.07f * i);
-            }
+            // The paper figure: a bust silhouette, kept a touch back so the reticle sits on top.
+            canvas = RoundedRect(canvas, p, new Vector2(0f, -0.62f), new Vector2(0.62f, 0.40f), 0.26f, 0f, Ink, texel);
+            canvas = Circle(canvas, p, new Vector2(0f, 0.02f), 0.30f, Ink, texel, 1f);
 
-            canvas = Glow(canvas, p, new Vector2(-0.42f, -0.46f), 0.52f, Palette.Accent, 0.45f);
+            // The reticle: a warm bloom, a vermilion ring, four ticks and a centre pip.
+            canvas = Glow(canvas, p, Vector2.zero, 0.72f, Palette.Accent, 0.28f);
+            canvas = Ring(canvas, p, Vector2.zero, 0.40f, 0.52f, Palette.Accent, texel);
 
-            var blockHalf = new Vector2(0.40f, 0.125f);
-            canvas = RoundedRect(canvas, p, new Vector2(0.10f, -0.34f), blockHalf, 0.055f, -4f, Palette.Blocks[0], texel);
-            canvas = RoundedRect(canvas, p, new Vector2(0.05f, -0.045f), blockHalf, 0.055f, 3f, Palette.Blocks[2], texel);
-            canvas = RoundedRect(canvas, p, new Vector2(0.14f, 0.25f), blockHalf, 0.055f, -9f, Palette.Blocks[3], texel);
+            var tickHalf = new Vector2(0.055f, 0.14f);
+            canvas = RoundedRect(canvas, p, new Vector2(0f, 0.52f), tickHalf, 0.03f, 0f, Palette.Accent, texel);
+            canvas = RoundedRect(canvas, p, new Vector2(0f, -0.52f), tickHalf, 0.03f, 0f, Palette.Accent, texel);
+            canvas = RoundedRect(canvas, p, new Vector2(0.52f, 0f), new Vector2(tickHalf.y, tickHalf.x), 0.03f, 0f, Palette.Accent, texel);
+            canvas = RoundedRect(canvas, p, new Vector2(-0.52f, 0f), new Vector2(tickHalf.y, tickHalf.x), 0.03f, 0f, Palette.Accent, texel);
 
-            canvas = Circle(canvas, p, new Vector2(-0.42f, -0.46f), 0.155f, Palette.Accent, texel, 1f);
+            canvas = Circle(canvas, p, Vector2.zero, 0.07f, Palette.Accent, texel, 1f);
             return canvas;
+        }
+
+        /// <summary>Anti-aliased annulus, so the reticle ring works on a transparent foreground.</summary>
+        static Color Ring(Color dst, Vector2 p, Vector2 center, float inner, float outer, Color tint, float texel)
+        {
+            var r = (p - center).magnitude;
+            var mid = (inner + outer) * 0.5f;
+            var halfWidth = (outer - inner) * 0.5f;
+            var distance = Mathf.Abs(r - mid) - halfWidth;
+            var alpha = Mathf.Clamp01(0.5f - distance / texel);
+            return alpha <= 0f ? dst : Blend(dst, tint, alpha);
         }
 
         static Color RoundedRect(Color dst, Vector2 p, Vector2 center, Vector2 half, float radius, float degrees, Color tint, float texel)

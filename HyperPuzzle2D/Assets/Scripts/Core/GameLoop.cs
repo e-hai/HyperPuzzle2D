@@ -4,11 +4,9 @@ namespace HyperPuzzle2D.Core
 {
     public enum ScoreReason
     {
-        DirectHit,
         Broken,
-        KnockedOff,
-        Explosion,
         AmmoBonus,
+        Explosion,
     }
 
     public readonly struct ScoreAward
@@ -27,29 +25,18 @@ namespace HyperPuzzle2D.Core
         }
     }
 
-    public enum RunMode
-    {
-        Endless,
-        Daily,
-        Stage,
-    }
-
     public enum GameState
     {
         Ready,
         Playing,
-        Resolve,
         Failed,
-        Cleared
+        Cleared,
     }
 
-    /// <summary>
-    /// Lightweight run state machine for MVP (cannon smash loop).
-    /// </summary>
+    /// <summary>Stage run state machine for the paper-target loop.</summary>
     public sealed class GameLoop
     {
         public GameState State { get; private set; } = GameState.Ready;
-        public RunMode Mode { get; private set; } = RunMode.Endless;
         public int Score { get; private set; }
         public int Ammo { get; private set; }
         public int Combo { get; private set; }
@@ -65,18 +52,14 @@ namespace HyperPuzzle2D.Core
         public bool GoalMet => RequiresClearAll
             ? TargetsRemaining <= 0
             : TargetScore > 0 && Score >= TargetScore;
-        public bool ReviveUsed { get; private set; }
 
         public event Action<GameState> StateChanged;
         public event Action<int> ScoreChanged;
         public event Action<int> AmmoChanged;
-        public event Action<int> ComboChanged;
-        public event Action<int> TargetsChanged;
         public event Action<ScoreAward> ScoreAwarded;
 
-        public void StartRun(RunMode mode, int ammo, int targetCount, int targetScore)
+        public void StartRun(int ammo, int targetCount, int targetScore)
         {
-            Mode = mode;
             Score = 0;
             Combo = 0;
             Ammo = ammo;
@@ -84,12 +67,9 @@ namespace HyperPuzzle2D.Core
             TargetScore = targetScore;
             ShotScore = 0;
             ShotDestroyed = 0;
-            ReviveUsed = false;
             SetState(GameState.Playing);
             ScoreChanged?.Invoke(Score);
             AmmoChanged?.Invoke(Ammo);
-            TargetsChanged?.Invoke(TargetsRemaining);
-            ComboChanged?.Invoke(Combo);
         }
 
         public bool TryConsumeAmmo()
@@ -103,19 +83,8 @@ namespace HyperPuzzle2D.Core
             ShotScore = 0;
             ShotDestroyed = 0;
             Combo = 0;
-            ComboChanged?.Invoke(Combo);
             AmmoChanged?.Invoke(Ammo);
             return true;
-        }
-
-        public void RegisterDirectHit(int points)
-        {
-            if (State != GameState.Playing)
-            {
-                return;
-            }
-
-            Award(Math.Max(0, points), ScoreReason.DirectHit, false);
         }
 
         public void RegisterDestruction(int points, ScoreReason reason)
@@ -139,7 +108,6 @@ namespace HyperPuzzle2D.Core
             }
 
             TargetsRemaining = Math.Max(0, TargetsRemaining - 1);
-            TargetsChanged?.Invoke(TargetsRemaining);
         }
 
         public void NotifyShotResolved()
@@ -149,40 +117,26 @@ namespace HyperPuzzle2D.Core
                 return;
             }
 
-            if (GoalMet)
+            // The run plays out rather than ending the instant the goal is crossed: a player gets to
+            // spend the whole clip dismantling the figure, and the score is the sum of every part
+            // hit. It only ends early when there is nothing left to shoot, which pays the leftover
+            // ammo as a precision bonus.
+            var clearedEverything = TargetsRemaining <= 0;
+            if (clearedEverything)
             {
                 var bonus = Ammo * 20;
                 if (bonus > 0)
                 {
                     Award(bonus, ScoreReason.AmmoBonus, false);
                 }
-
-                SetState(GameState.Cleared);
             }
-            else if (Ammo <= 0)
+
+            if (!clearedEverything && Ammo > 0)
             {
-                SetState(GameState.Failed);
-            }
-        }
-
-        public bool TryRevive(int bonusAmmo)
-        {
-            if (State != GameState.Failed || ReviveUsed)
-            {
-                return false;
+                return;
             }
 
-            ReviveUsed = true;
-            Ammo = Math.Max(1, bonusAmmo);
-            AmmoChanged?.Invoke(Ammo);
-            SetState(GameState.Playing);
-            return true;
-        }
-
-        public void ResetCombo()
-        {
-            Combo = 0;
-            ComboChanged?.Invoke(Combo);
+            SetState(GoalMet ? GameState.Cleared : GameState.Failed);
         }
 
         void Award(int points, ScoreReason reason, bool chain)
@@ -195,11 +149,6 @@ namespace HyperPuzzle2D.Core
             Score += points;
             ShotScore += points;
             ScoreChanged?.Invoke(Score);
-            if (chain)
-            {
-                ComboChanged?.Invoke(Combo);
-            }
-
             ScoreAwarded?.Invoke(new ScoreAward(points, ShotScore, Combo, reason));
         }
 

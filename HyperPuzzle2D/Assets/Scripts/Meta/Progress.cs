@@ -3,13 +3,10 @@ using UnityEngine;
 namespace HyperPuzzle2D.Meta
 {
     /// <summary>
-    /// Local persistence for endless-mode progress, stage unlocks, and preference toggles.
-    /// Daily best scores live in <see cref="DailyChallenge"/>.
+    /// Local persistence for stage unlocks, best scores/stars, and preference toggles.
     /// </summary>
     public static class Progress
     {
-        const string EndlessBestKey = "endless_best";
-        const string FtueDoneKey = "ftue_done";
         const string SfxKey = "pref_sfx";
         const string HapticsKey = "pref_haptics";
         const string RunsKey = "runs_started";
@@ -18,20 +15,23 @@ namespace HyperPuzzle2D.Meta
         const string StageBestPrefix = "stage_best_";
         const string StageStarsPrefix = "stage_stars_";
 
-        /// <summary>Interstitial ads stay quiet for the first few runs so FTUE is not interrupted.</summary>
-        public const int AdFreeRuns = 3;
+        /// <summary>
+        /// Namespaces the run/stage keys so separate game modes keep separate save files.
+        /// Device preferences (sound, haptics) stay unprefixed on purpose.
+        /// </summary>
+        public static string Profile { get; set; } = string.Empty;
 
-        public static int EndlessBest => PlayerPrefs.GetInt(EndlessBestKey, 0);
+        static string Key(string key) => Profile + key;
 
         /// <summary>
         /// Highest 1-based stage number the player may enter. Starts at 1 (first stage unlocked).
         /// </summary>
         public static int StageUnlocked
         {
-            get => Mathf.Max(1, PlayerPrefs.GetInt(StageUnlockedKey, 1));
+            get => Mathf.Max(1, PlayerPrefs.GetInt(Key(StageUnlockedKey), 1));
             private set
             {
-                PlayerPrefs.SetInt(StageUnlockedKey, value);
+                PlayerPrefs.SetInt(Key(StageUnlockedKey), value);
                 PlayerPrefs.Save();
             }
         }
@@ -39,20 +39,10 @@ namespace HyperPuzzle2D.Meta
         /// <summary>0-based index of the last stage the player started.</summary>
         public static int LastPlayedStage
         {
-            get => Mathf.Max(0, PlayerPrefs.GetInt(LastPlayedStageKey, 0));
+            get => Mathf.Max(0, PlayerPrefs.GetInt(Key(LastPlayedStageKey), 0));
             set
             {
-                PlayerPrefs.SetInt(LastPlayedStageKey, Mathf.Max(0, value));
-                PlayerPrefs.Save();
-            }
-        }
-
-        public static bool FtueDone
-        {
-            get => PlayerPrefs.GetInt(FtueDoneKey, 0) == 1;
-            set
-            {
-                PlayerPrefs.SetInt(FtueDoneKey, value ? 1 : 0);
+                PlayerPrefs.SetInt(Key(LastPlayedStageKey), Mathf.Max(0, value));
                 PlayerPrefs.Save();
             }
         }
@@ -77,9 +67,7 @@ namespace HyperPuzzle2D.Meta
             }
         }
 
-        public static int RunsStarted => PlayerPrefs.GetInt(RunsKey, 0);
-
-        public static bool ShouldDelayInterstitial => RunsStarted <= AdFreeRuns;
+        public static int RunsStarted => PlayerPrefs.GetInt(Key(RunsKey), 0);
 
         public static bool IsStageUnlocked(int zeroBasedIndex)
         {
@@ -109,17 +97,16 @@ namespace HyperPuzzle2D.Meta
 
         public static int StageBest(int zeroBasedIndex)
         {
-            return PlayerPrefs.GetInt(StageBestPrefix + zeroBasedIndex, 0);
+            return PlayerPrefs.GetInt(Key(StageBestPrefix + zeroBasedIndex), 0);
         }
 
         public static int StageStars(int zeroBasedIndex)
         {
-            return Mathf.Clamp(PlayerPrefs.GetInt(StageStarsPrefix + zeroBasedIndex, 0), 0, 3);
+            return Mathf.Clamp(PlayerPrefs.GetInt(Key(StageStarsPrefix + zeroBasedIndex), 0), 0, 3);
         }
 
         /// <summary>
-        /// Records a finished stage run. Best score and best stars are kept independently: a run
-        /// that scores lower can still not take away a rating the player already earned.
+        /// Records a finished stage run. Best score and best stars are kept independently.
         /// Returns true when this run beat the stored score.
         /// </summary>
         public static bool SubmitStage(int zeroBasedIndex, int score, int stars)
@@ -127,12 +114,12 @@ namespace HyperPuzzle2D.Meta
             var beatBest = score > StageBest(zeroBasedIndex);
             if (beatBest)
             {
-                PlayerPrefs.SetInt(StageBestPrefix + zeroBasedIndex, score);
+                PlayerPrefs.SetInt(Key(StageBestPrefix + zeroBasedIndex), score);
             }
 
             if (stars > StageStars(zeroBasedIndex))
             {
-                PlayerPrefs.SetInt(StageStarsPrefix + zeroBasedIndex, Mathf.Clamp(stars, 0, 3));
+                PlayerPrefs.SetInt(Key(StageStarsPrefix + zeroBasedIndex), Mathf.Clamp(stars, 0, 3));
             }
 
             PlayerPrefs.Save();
@@ -150,22 +137,9 @@ namespace HyperPuzzle2D.Meta
             return total;
         }
 
-        /// <summary>Stores the score if it beats the record. Returns true when a new best was set.</summary>
-        public static bool SubmitEndless(int score)
-        {
-            if (score <= EndlessBest)
-            {
-                return false;
-            }
-
-            PlayerPrefs.SetInt(EndlessBestKey, score);
-            PlayerPrefs.Save();
-            return true;
-        }
-
         public static void MarkRunStarted()
         {
-            PlayerPrefs.SetInt(RunsKey, RunsStarted + 1);
+            PlayerPrefs.SetInt(Key(RunsKey), RunsStarted + 1);
             PlayerPrefs.Save();
         }
     }
