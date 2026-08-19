@@ -201,14 +201,14 @@ def main():
     bp = base.load()
 
     cc, avg_bg = extract_clothes(CLOTHES, w, h)
-    # Fit to original outfit footprint (known-good paper alignment), slightly wider for Base arms
+    # Base is slimmer than the paper-art clothes; shrink to ~78% width / 82% height.
     orig_o = Image.open(OUTFIT_DIR / "Outfit.png").convert("RGBA")
     obb = orig_o.split()[-1].getbbox()
-    target_w = int((obb[2] - obb[0]) * 1.02)
-    target_h = int(cc.size[1] * (target_w / cc.size[0]))
+    target_w = int((obb[2] - obb[0]) * 0.78)
+    target_h = int(cc.size[1] * (target_w / cc.size[0]) * (0.82 / 0.78))
     cs = cc.resize((target_w, target_h), Image.LANCZOS)
     x0 = CENTRE - target_w // 2
-    y0 = SHOULDER - 8
+    y0 = SHOULDER
     outfit = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     outfit.alpha_composite(cs, (x0, y0))
     op = outfit.load()
